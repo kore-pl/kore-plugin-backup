@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- feat: 统一插件配置契约（`backup.config.get` / `backup.config.set`）：界面可配备份目录与
+  `allow_roots` 白名单，保存即生效、无需重启
+- feat: 配置存储 `<KORE_STATE_DIR>/config.json`（0600，原子写），优先级
+  `config.json` > `KORE_BACKUP_DIR` / `KORE_BACKUP_ALLOW_ROOTS` > 默认值；默认白名单收敛为
+  `/var/www`、`/etc/kore`（原 `/home` 需在界面显式添加）
+- feat: 通用 `internal/plugincfg`（schema 校验 / 0600 原子存储 / sensitive `***` 掩码）与
+  dir、allow_roots 的写盘前校验；失败不写半份文件、旧配置继续可用
+
 ## 0.2.0 (2026-11-22)
 
 - feat: backup.create 真实打包：标准库 tar+gzip、边写边算 sha256、保留相对路径/模式/

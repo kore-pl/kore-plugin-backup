@@ -104,7 +104,7 @@ func TestDispatchReject(t *testing.T) {
 			Type: pluginapi.TypeRequest, ID: "id", ReqID: "r",
 			Method: c.method, Params: json.RawMessage(c.params),
 		}
-		resp, _ := dispatch(req, cfg, testLogger())
+		resp, _ := dispatch(req, &cfg, testLogger())
 		if resp.Error == nil || resp.Error.Code != c.code {
 			t.Fatalf("%s 错误=%v，期望 %q", c.method, resp.Error, c.code)
 		}
@@ -117,7 +117,8 @@ func TestDispatchReject(t *testing.T) {
 // TestPingResult kore.ping 返回 ready 状态。
 func TestPingResult(t *testing.T) {
 	req := &pluginapi.Request{Type: pluginapi.TypeRequest, ID: "id", ReqID: "r", Method: "kore.ping"}
-	resp, _ := dispatch(req, testConfig(t), testLogger())
+	testCfg := testConfig(t)
+	resp, _ := dispatch(req, &testCfg, testLogger())
 	if !strings.Contains(string(resp.Result), `"status":"ready"`) {
 		t.Fatalf("ping 结果=%s", resp.Result)
 	}
@@ -130,7 +131,7 @@ func call(t *testing.T, cfg config, method, params string) json.RawMessage {
 		Type: pluginapi.TypeRequest, ID: "id", ReqID: "r",
 		Method: method, Params: json.RawMessage(params),
 	}
-	resp, shutdown := dispatch(req, cfg, testLogger())
+	resp, shutdown := dispatch(req, &cfg, testLogger())
 	if shutdown {
 		t.Fatalf("%s 不应触发 shutdown", method)
 	}

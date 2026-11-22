@@ -4,25 +4,36 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/pengtang1024/kore/pkg/pluginapi"
 )
 
-// Call 执行一个 backup 方法：先校验方法名与参数，再调用执行面并结构化结果。
-// exec 为 nil 时使用 noopExecutor（骨架口径，不真写任何存储）。
-func Call(method string, params json.RawMessage, root string, exec Executor) (json.RawMessage, *pluginapi.Error) {
+// Call 执行一个 backup 方法：归一方法名 → 校验参数与路径白名单 → 调用执行面。
+// exec 为 nil 时使用真实 tar+gzip 文件系统实现（realFS）。
+func Call(method string, params json.RawMessage, opts Options, exec Executor) (json.RawMessage, *pluginapi.Error) {
 	verb, ok := businessVerb(method)
 	if !ok {
 		return nil, errNotFound(method)
 	}
+	applyOptionDefaults(&opts)
+	if opts.Dir == "" {
+		return nil, internalErr("备份目录未配置")
+	}
 	if exec == nil {
-		exec = noopExecutor{}
+		exec = realFS{}
 	}
 	switch verb {
-	case "jobs":
-		return callJobs(params, root, exec)
 	case "create":
-		return callCreate(params, root, exec)
+		return callCreate(params, opts, exec)
+	case "list":
+		return callList(params, opts, exec)
+	case "restore":
+		return callRestore(params, opts, exec)
+	case "delete":
+		return callDelete(params, opts, exec)
+	case "verify":
+		return callVerify(params, opts, exec)
 	}
 	return nil, errNotFound(method)
 }
@@ -34,13 +45,26 @@ func businessVerb(method string) (string, bool) {
 		verb = strings.TrimPrefix(method, "backup.")
 	}
 	switch verb {
-	case "jobs", "create":
+	case "create", "list", "restore", "delete", "verify":
 		return verb, true
 	}
 	return "", false
 }
 
-// classify 把执行面错误映射为协议错误码：四类故障各有对应，其余归 E_INTERNAL。
+// applyOptionDefaults 补齐缺省上限与白名单；AllowRoots 为空时使用默认白名单。
+func applyOptionDefaults(opts *Options) {
+	if opts.MaxBytes <= 0 {
+		opts.MaxBytes = DefaultMaxBytes
+	}
+	if opts.MaxEntries <= 0 {
+		opts.MaxEntries = DefaultMaxEntries
+	}
+	if len(opts.AllowRoots) == 0 {
+		opts.AllowRoots = append([]string(nil), DefaultAllowRoots...)
+	}
+}
+
+// classify 把执行面错误映射为协议错误码：四类故障优先，其次业务错误，最后归 E_INTERNAL。
 func classify(err error) *pluginapi.Error {
 	var fe *FaultError
 	if errors.As(err, &fe) {
@@ -55,11 +79,34 @@ func classify(err error) *pluginapi.Error {
 			return unsupported("cgroup 限额触发: " + fe.Message)
 		}
 	}
+	var oe *OpError
+	if errors.As(err, &oe) {
+		switch oe.Kind {
+		case ErrInvalid:
+			return invalid(oe.Message)
+		case ErrNotFound:
+			return notFound(oe.Message)
+		case ErrConflict:
+			return conflict(oe.Message)
+		case ErrUnsupported:
+			return unsupported(oe.Message)
+		default:
+			return internalErr(oe.Message)
+		}
+	}
 	return internalErr("执行面失败: " + err.Error())
 }
 
 func invalid(msg string) *pluginapi.Error {
 	return &pluginapi.Error{Code: pluginapi.E_INVALID, Message: msg}
+}
+
+func notFound(msg string) *pluginapi.Error {
+	return &pluginapi.Error{Code: pluginapi.E_NOTFOUND, Message: msg}
+}
+
+func conflict(msg string) *pluginapi.Error {
+	return &pluginapi.Error{Code: pluginapi.E_CONFLICT, Message: msg}
 }
 
 func errNotFound(method string) *pluginapi.Error {
@@ -76,4 +123,35 @@ func internalErr(msg string) *pluginapi.Error {
 
 func unsupported(msg string) *pluginapi.Error {
 	return &pluginapi.Error{Code: pluginapi.E_UNSUPPORTED, Message: msg}
+}
+
+// decodeParams 校验 params 是 JSON 对象并反序列化到目标形状。
+func decodeParams(raw json.RawMessage, target any) *pluginapi.Error {
+	if len(raw) == 0 {
+		raw = json.RawMessage(`{}`)
+	}
+	if string(raw) == "null" {
+		return invalid("params 必须是 JSON 对象")
+	}
+	if raw[0] != '{' {
+		return invalid("params 必须是 JSON 对象")
+	}
+	if err := json.Unmarshal(raw, target); err != nil {
+		return invalid("params 解析失败: " + err.Error())
+	}
+	return nil
+}
+
+// encode 把结果编码为 json.RawMessage；序列化失败归 E_INTERNAL。
+func encode(v any) (json.RawMessage, *pluginapi.Error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, internalErr("序列化结果失败: " + err.Error())
+	}
+	return data, nil
+}
+
+// elapsedMS 返回从 started 到现在的毫秒数。
+func elapsedMS(started time.Time) int64 {
+	return time.Since(started).Milliseconds()
 }

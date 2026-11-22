@@ -33,7 +33,8 @@ func dispatch(request *pluginapi.Request, cfg config, logger *slog.Logger) (*plu
 		response.Result = json.RawMessage(`{"ok":true,"config_digest":""}`)
 		return response, false
 	}
-	result, perr := backupop.Call(request.Method, request.Params, cfg.root, nil)
+	options := backupop.Options{Dir: cfg.backupDir, AllowRoots: cfg.allowRoots}
+	result, perr := backupop.Call(request.Method, request.Params, options, nil)
 	if perr != nil {
 		response.Error = perr
 		response.Result = nil

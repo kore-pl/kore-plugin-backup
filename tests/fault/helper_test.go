@@ -1,9 +1,11 @@
-// Package fault 对 backup 插件做四类故障注入，验证方法级错误返回。
-// 每个用例向 backupop.Call 的执行面注入一种故障，断言两方法返回的结构化错误码。
+// Package fault 对 backup 插件做四类故障注入，验证五个方法的错误返回。
+// 每个用例向 backupop.Call 的执行面注入一种故障，断言结构化错误码。
 package fault
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,38 +13,66 @@ import (
 	"github.com/pengtang1024/kore/pkg/pluginapi"
 )
 
-const testRoot = "/var/lib/kore/backup"
-
 // faultExecutor 按注入类别让每个方法都失败，模拟四类运行时故障。
 type faultExecutor struct {
 	kind backupop.FaultKind
 }
 
-func (f faultExecutor) Jobs(root string) ([]backupop.Job, error) {
-	return nil, backupop.NewFaultError(f.kind, "jobs 执行面故障")
+func (f faultExecutor) Create(backupop.CreateSpec) (backupop.CreateData, error) {
+	return backupop.CreateData{}, backupop.NewFaultError(f.kind, "create 执行面故障")
 }
 
-func (f faultExecutor) Create(root, target, backend string, retentionDays int) (bool, error) {
-	return false, backupop.NewFaultError(f.kind, "create 执行面故障")
+func (f faultExecutor) List(string) ([]backupop.BackupInfo, error) {
+	return nil, backupop.NewFaultError(f.kind, "list 执行面故障")
 }
 
-// methods 是四类故障注入覆盖的方法及其合法参数。
-var methods = []struct {
+func (f faultExecutor) Restore(backupop.RestoreSpec) (backupop.RestoreData, error) {
+	return backupop.RestoreData{}, backupop.NewFaultError(f.kind, "restore 执行面故障")
+}
+
+func (f faultExecutor) Delete(string, string) error {
+	return backupop.NewFaultError(f.kind, "delete 执行面故障")
+}
+
+func (f faultExecutor) Verify(string, string) (backupop.VerifyData, error) {
+	return backupop.VerifyData{}, backupop.NewFaultError(f.kind, "verify 执行面故障")
+}
+
+// okExecutor 是 sanity 用的空执行面：只证明方法分派与编码路径正常，不落盘。
+type okExecutor struct{}
+
+func (okExecutor) Create(backupop.CreateSpec) (backupop.CreateData, error) {
+	return backupop.CreateData{Skipped: []string{}, Warnings: []string{}}, nil
+}
+
+func (okExecutor) List(string) ([]backupop.BackupInfo, error) { return []backupop.BackupInfo{}, nil }
+
+func (okExecutor) Restore(backupop.RestoreSpec) (backupop.RestoreData, error) {
+	return backupop.RestoreData{Failed: []string{}}, nil
+}
+
+func (okExecutor) Delete(string, string) error { return nil }
+
+func (okExecutor) Verify(string, string) (backupop.VerifyData, error) {
+	return backupop.VerifyData{}, nil
+}
+
+// faultMethod 是一个方法的合法参数。
+type faultMethod struct {
 	name   string
 	method string
 	params string
-}{
-	{"jobs", "backup.jobs", `{}`},
-	{"create", "backup.create", `{"target":"data/db","backend":"local","retention_days":7}`},
 }
 
-// assertFault 对每个方法注入故障，断言返回 nil 结果 + 预期的协议错误码与类别关键词。
+// assertFault 对每个方法注入故障，断言 nil 结果 + 预期错误码与类别关键词。
 func assertFault(t *testing.T, kind backupop.FaultKind, wantCode, wantHint string) {
 	t.Helper()
 	exec := faultExecutor{kind: kind}
-	for _, m := range methods {
+	workspace := t.TempDir()
+	opts := backupop.Options{Dir: filepath.Join(workspace, "backups"), AllowRoots: []string{workspace}}
+	for _, m := range methodsFor(t, workspace) {
 		t.Run(m.name, func(t *testing.T) {
-			result, perr := backupop.Call(m.method, json.RawMessage(m.params), testRoot, exec)
+			result, perr := backupop.Call(m.method, json.RawMessage(m.params), opts, exec)
 			if perr == nil {
 				t.Fatalf("%s 注入 %s 后未返回错误（结果=%s）", m.method, kind, result)
 			}
@@ -59,11 +89,36 @@ func assertFault(t *testing.T, kind backupop.FaultKind, wantCode, wantHint strin
 	}
 }
 
-// sanityNoFault 验证无故障时两方法正常返回，证明故障断言不是"永远失败"的假通过。
+// methodsFor 构造五个方法的合法参数，源目录位于给定工作区。
+func methodsFor(t *testing.T, workspace string) []faultMethod {
+	t.Helper()
+	source := filepath.Join(workspace, "src")
+	if err := os.MkdirAll(source, 0o755); err != nil {
+		t.Fatalf("建源目录: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "a.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("写源文件: %v", err)
+	}
+	sourceJSON, _ := json.Marshal(source)
+	targetJSON, _ := json.Marshal(filepath.Join(workspace, "dst"))
+	id := "snap-20260101T000000Z"
+	idJSON, _ := json.Marshal(id)
+	return []faultMethod{
+		{"create", "backup.create", `{"name":"snap","paths":[` + string(sourceJSON) + `]}`},
+		{"list", "backup.list", `{}`},
+		{"restore", "backup.restore", `{"id":` + string(idJSON) + `,"target_dir":` + string(targetJSON) + `}`},
+		{"delete", "backup.delete", `{"id":` + string(idJSON) + `}`},
+		{"verify", "backup.verify", `{"id":` + string(idJSON) + `}`},
+	}
+}
+
+// sanityNoFault 验证无故障时五个方法正常返回，证明故障断言不是"永远失败"的假通过。
 func sanityNoFault(t *testing.T) {
 	t.Helper()
-	for _, m := range methods {
-		result, perr := backupop.Call(m.method, json.RawMessage(m.params), testRoot, nil)
+	workspace := t.TempDir()
+	opts := backupop.Options{Dir: filepath.Join(workspace, "backups"), AllowRoots: []string{workspace}}
+	for _, m := range methodsFor(t, workspace) {
+		result, perr := backupop.Call(m.method, json.RawMessage(m.params), opts, okExecutor{})
 		if perr != nil {
 			t.Fatalf("无故障时 %s 意外返回错误: %v", m.method, perr)
 		}

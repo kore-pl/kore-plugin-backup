@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 (2026-11-23)
+
+- fix: 位级可复现打包（stage chmod + tar --mode 归一、size_bytes 收敛）；二进制改嵌 manifest.json，消除版本/大小回填导致的同版本 sha 漂移
+
+## 0.2.0 (2026-11-22)
 
 - feat: 统一插件配置契约（`backup.config.get` / `backup.config.set`）：界面可配备份目录与
   `allow_roots` 白名单，保存即生效、无需重启
@@ -9,9 +13,6 @@
   `/var/www`、`/etc/kore`（原 `/home` 需在界面显式添加）
 - feat: 通用 `internal/plugincfg`（schema 校验 / 0600 原子存储 / sensitive `***` 掩码）与
   dir、allow_roots 的写盘前校验；失败不写半份文件、旧配置继续可用
-
-## 0.2.0 (2026-11-22)
-
 - feat: backup.create 真实打包：标准库 tar+gzip、边写边算 sha256、保留相对路径/模式/
   mtime/uid/gid、不跟随符号链接、exclude glob、2 GiB / 100 万条目上限与半成品清理
 - feat: backup.list 扫描备份目录并解析 `.sha256` / `.meta.json` sidecar，读 tar 头失败标记

@@ -141,7 +141,7 @@
 gofmt -l . && go vet ./... && go test -timeout 200s ./...
 go test -tags e2e -timeout 200s ./tests/e2e -v   # 真实插件二进制 + UDS 端到端
 make build && make dist
-tar -tzf dist/backup-0.4.0.tar.gz | head -1      # info.json
+tar -tzf dist/backup-0.4.2.tar.gz | head -1      # info.json
 ```
 
 单元测试覆盖真实目录树打包恢复、`exclude`、确定性 sha256、路径穿越整包拒绝、白名单与
@@ -168,7 +168,7 @@ schedule 契约/非法 cron/next_run_at、download 分块往返与符号链接�
 - **行为准则**：[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
 - **兼容性**：`protocol: kore.plugin.v1` · `requires_kore: >=0.1.0 <0.2.0` · `lifecycle: lazy` · 深度等级 `production`。
 - **验证方式**：本地 `make check` 优先（CI 只在 push main / tag / PR / 手动跑；发布前 `make dist` 连跑两次核对 sha 一致）。
-- **发布产物**：`make dist` → `dist/backup-0.4.0.tar.gz` + `.sha256`（位级可复现，连跑两次 sha 相同）。
+- **发布产物**：`make dist` → `dist/backup-0.4.2.tar.gz` + `.sha256`（位级可复现，连跑两次 sha 相同）。
 - **相关仓库**：[索引 kore-plugins](https://github.com/kore-pl/kore-plugins) · [协议文档](https://github.com/kore-pl/kore/blob/main/docs/PLUGIN-PROTOCOL.md) · [SDK 指南](https://github.com/kore-pl/kore/blob/main/docs/PLUGIN-SDK.md)
 
 <!-- oss:end -->

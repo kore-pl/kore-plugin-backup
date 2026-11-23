@@ -1,7 +1,7 @@
 {
   "id": "backup",
   "name": "备份插件",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "protocol": "kore.plugin.v1",
   "lifecycle": "lazy",
   "depth_level": "production",
@@ -9,6 +9,21 @@
   "capabilities": [
     "system:admin"
   ],
+  "method_capabilities": {
+    "backup.create": "system:admin",
+    "backup.list": "system:read",
+    "backup.restore": "system:admin",
+    "backup.delete": "system:admin",
+    "backup.verify": "system:read",
+    "backup.retention": "system:admin",
+    "backup.stats": "system:read",
+    "backup.download": "system:read",
+    "backup.jobs": "system:read",
+    "backup.schedule.set": "system:admin",
+    "backup.schedule.get": "system:read",
+    "backup.config.get": "system:read",
+    "backup.config.set": "system:admin"
+  },
   "triggers": [],
   "requires_kore": ">=0.1.0 <0.2.0",
   "resources": {
@@ -22,7 +37,7 @@
     "ops",
     "data"
   ],
-  "size_bytes": 1607937,
+  "size_bytes": 1706103,
   "methods": [
     "backup.create",
     "backup.list",

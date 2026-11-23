@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 (2026-11-23)
+
+- feat(protocol): `info.json` 补 `method_capabilities` 13 条（11 业务 + `config.get`/`config.set`）——只读 7 个方法声明 `system:read`（`list`/`verify`/`stats`/`download`/`jobs`/`schedule.get`/`config.get`），写类 6 个声明 `system:admin`；未声明的方法会回退插件级 `system:admin`，导致"看个备份列表也进 admin 审计"（PLUGIN-MATURITY §3.5 #12）
+- test: 声明一致性表驱动门禁（只读/写分类逐条断言 + 声明 ⊆ 实现反向断言 + 条数相等 + config 两条必含）
+
 ## 0.4.0 (2026-11-23)
 
 - feat: `backup.schedule.set` / `backup.schedule.get`：对齐 `ssl.renew.set` 契约，输出内核

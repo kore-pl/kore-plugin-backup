@@ -38,6 +38,14 @@ func Call(method string, params json.RawMessage, opts Options, exec Executor) (j
 		return callRetention(params, opts, exec)
 	case "stats":
 		return callStats(params, opts, exec)
+	case "download":
+		return callDownload(params, opts, exec)
+	case "jobs":
+		return callJobs(params, opts, exec)
+	case "schedule.set":
+		return callScheduleSet(params, opts, exec)
+	case "schedule.get":
+		return callScheduleGet(params, opts, exec)
 	}
 	return nil, errNotFound(method)
 }
@@ -49,7 +57,8 @@ func businessVerb(method string) (string, bool) {
 		verb = strings.TrimPrefix(method, "backup.")
 	}
 	switch verb {
-	case "create", "list", "restore", "delete", "verify", "retention", "stats":
+	case "create", "list", "restore", "delete", "verify", "retention", "stats",
+		"download", "jobs", "schedule.set", "schedule.get":
 		return verb, true
 	}
 	return "", false
@@ -94,6 +103,8 @@ func classify(err error) *pluginapi.Error {
 			return conflict(oe.Message)
 		case ErrUnsupported:
 			return unsupported(oe.Message)
+		case ErrUpstream:
+			return upstream(oe.Message)
 		default:
 			return internalErr(oe.Message)
 		}

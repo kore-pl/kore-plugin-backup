@@ -50,7 +50,7 @@ func dispatch(request *pluginapi.Request, cfg *config, logger *slog.Logger) (*pl
 		response.Result = result
 		return response, false
 	}
-	options := backupop.Options{Dir: cfg.backupDir, AllowRoots: cfg.allowRoots}
+	options := backupop.Options{Dir: cfg.backupDir, AllowRoots: cfg.allowRoots, DB: cfg.mysqlConfig()}
 	result, perr := backupop.Call(request.Method, request.Params, options, nil)
 	if perr != nil {
 		response.Error = perr
@@ -91,6 +91,10 @@ func handleConfigSet(params json.RawMessage, cfg *config) (json.RawMessage, *plu
 	merged := cfg.values
 	if err := strictDecode(p.Values, &merged); err != nil {
 		return nil, invalid("配置值非法: " + err.Error())
+	}
+	// config.get 掩码后的占位值表示"不修改密码"，不能把 *** 存成新密码。
+	if merged.DBPassword == plugincfg.SensitivePlaceholder {
+		merged.DBPassword = cfg.values.DBPassword
 	}
 	normalized, err := validateBackupValues(merged)
 	if err != nil {

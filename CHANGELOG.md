@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.0 (2026-11-23)
+
+- feat: `backup.schedule.set` / `backup.schedule.get`：对齐 `ssl.renew.set` 契约，输出内核
+  scheduler 可消费的任务描述（`created=false`、`task_id=""`、`next_run_at`、
+  `recommended_task{name,plugin,method,params,schedule,timeout_s}`），由前端 POST
+  `/api/v1/scheduler/tasks` 生效；插件内**零 ticker / 零 AfterFunc / 零定时 goroutine**（G-19），
+  `g19_test.go` 对源码做静态门禁
+- feat: `backup.download`：返回可下载引用（`path` + `size_bytes` + `sha256` + `content_type`），
+  `inline=true` 按 `offset`/`limit` 分块返回 base64（单块 ≤4 MiB，低于 8 MiB 帧上限）；
+  只读本插件备份目录内常规文件，符号链接与越界路径拒绝
+- feat: 作业进度：`create` 在 `<备份目录>/.jobs/` 落记录，状态机
+  `pending → running → succeeded | failed`，`entries`/`bytes` 为真实计数，
+  `stages[]` 记录 `db_dump`/`pack` 实测耗时；`backup.jobs` 可轮询，`create` 结果体带 `job`
+- feat: `create` 新增 `dimensions=["site","db"]` 维度显式声明（缺省 `["site"]` 向后兼容）：
+  db 维度经 `mysqldump` 导出到 `db/<database>.sql` 后打进同一归档；密码只经 `MYSQL_PWD`
+  传给子进程（不进 argv/日志/结果），子进程环境白名单透传，30 分钟硬超时，staging 0600 后清理
+- feat: 配置契约扩展 `db_host` / `db_port` / `db_user` / `db_password`（sensitive，0600 落盘、
+  config.get 掩码、占位值不覆盖旧密码）/ `db_dump_bin`；0.3.0 旧配置自动补默认值，
+  兼容 `KORE_BACKUP_DB_*` / `KORE_BACKUP_MYSQLDUMP_BIN` 环境变量
+- test: schedule 契约/非法 cron/`next_run_at`、download 分块往返与越界拒绝、jobs 状态机与
+  失败记录、db 维度 argv/环境变量/组合/失败映射、config 掩码与旧配置兼容；fault 四类注入
+  覆盖扩到 11 个方法
+- build: `info.json` / `manifest.json` 同步 `version=0.4.0` 与 `methods` 声明
+
 ## 0.3.0 (2026-11-23)
 
 - feat: `backup.retention {keep, dry_run?}` 保留策略：按创建时间倒序保留最近 1..100 份，

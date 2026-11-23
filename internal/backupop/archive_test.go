@@ -403,8 +403,16 @@ func assertDirEmpty(t *testing.T, dir string) {
 		}
 		t.Fatalf("读目录: %v", err)
 	}
-	if len(entries) != 0 {
-		t.Fatalf("目录 %s 应无残留，实际 %d 项", dir, len(entries))
+	// 作业记录（.jobs/）是 create 的持久化状态，不属于"半成品归档"，不在此断言范围。
+	residue := 0
+	for _, entry := range entries {
+		if entry.Name() == jobsDirName {
+			continue
+		}
+		residue++
+	}
+	if residue != 0 {
+		t.Fatalf("目录 %s 应无残留，实际 %d 项", dir, residue)
 	}
 }
 

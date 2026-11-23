@@ -212,6 +212,10 @@ func (f *retentionFailDelete) Delete(string, string) error {
 
 func (f *retentionFailDelete) Verify(string, string) (VerifyData, error) { return VerifyData{}, nil }
 
+func (f *retentionFailDelete) Download(DownloadSpec) (DownloadData, error) {
+	return DownloadData{}, nil
+}
+
 // TestRetentionDeleteFailureReportsProgress 中途失败要带已删除数量，不假装零删除。
 func TestRetentionDeleteFailureReportsProgress(t *testing.T) {
 	exec := &retentionFailDelete{failOn: 2, items: []BackupInfo{

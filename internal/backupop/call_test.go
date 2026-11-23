@@ -16,8 +16,11 @@ func TestBusinessVerb(t *testing.T) {
 		"backup.create": "create", "backup.list": "list", "backup.restore": "restore",
 		"backup.delete": "delete", "backup.verify": "verify",
 		"backup.retention": "retention", "backup.stats": "stats",
+		"backup.download": "download", "backup.jobs": "jobs",
+		"backup.schedule.set": "schedule.set", "backup.schedule.get": "schedule.get",
 		"create": "create", "list": "list", "restore": "restore",
 		"delete": "delete", "verify": "verify", "retention": "retention", "stats": "stats",
+		"download": "download", "jobs": "jobs", "schedule.set": "schedule.set", "schedule.get": "schedule.get",
 	}
 	for method, want := range cases {
 		got, ok := businessVerb(method)
@@ -56,6 +59,12 @@ func TestCallParamValidation(t *testing.T) {
 		{"backup.retention", `{"keep":0}`},
 		{"backup.retention", `{"keep":101}`},
 		{"backup.retention", `{"keep":"2"}`},
+		{"backup.download", `{"id":"../etc"}`},
+		{"backup.download", `{"id":"a","inline":true,"limit":8388608}`},
+		{"backup.jobs", `{"limit":99}`},
+		{"backup.schedule.set", `{"name":"snap","schedule":"bad"}`},
+		{"backup.schedule.set", `{"name":"snap","paths":[]}`},
+		{"backup.schedule.set", `{"name":"snap","paths":["relative"]}`},
 	}
 	for _, c := range bad {
 		_, perr := Call(c.method, json.RawMessage(c.params), opts, nil)
@@ -98,6 +107,10 @@ func (f faultExecutor) Restore(RestoreSpec) (RestoreData, error) {
 
 func (f faultExecutor) Delete(string, string) error {
 	return NewFaultError(f.kind, "delete 执行面故障")
+}
+
+func (f faultExecutor) Download(DownloadSpec) (DownloadData, error) {
+	return DownloadData{}, NewFaultError(f.kind, "download 执行面故障")
 }
 
 func (f faultExecutor) Verify(string, string) (VerifyData, error) {

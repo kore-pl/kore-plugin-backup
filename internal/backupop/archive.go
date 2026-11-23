@@ -22,6 +22,9 @@ type realFS struct{}
 
 // Create 遍历 paths 真实打包：保留相对路径、模式、mtime、uid/gid，
 // 不跟随符号链接（记 TypeSymlink）；边写边算压缩后文件 sha256。
+//
+// db 维度先 mysqldump 到 <备份目录>/.stage-<id>/db/<database>.sql，再以
+// db/<database>.sql 打进归档；无论成功失败都删除 staging。
 func (realFS) Create(spec CreateSpec) (CreateData, error) {
 	if err := os.MkdirAll(spec.Dir, 0o700); err != nil {
 		return CreateData{}, newOpError(ErrInternal, "创建备份目录失败: "+err.Error())
@@ -33,6 +36,22 @@ func (realFS) Create(spec CreateSpec) (CreateData, error) {
 		ext = ".tar"
 	}
 	archivePath := filepath.Join(spec.Dir, id+ext)
+
+	var stages []JobStage
+	var staged *stagedFile
+	if spec.DB != nil {
+		stagingRoot := filepath.Join(spec.Dir, dbStagingPrefix+id)
+		defer func() { _ = os.RemoveAll(stagingRoot) }()
+		if err := os.MkdirAll(stagingRoot, 0o700); err != nil {
+			return CreateData{}, newOpError(ErrInternal, "创建导出临时目录失败: "+err.Error())
+		}
+		file, stage, err := dumpDatabase(spec.DBConfig, *spec.DB, stagingRoot, spec.Progress)
+		if err != nil {
+			return CreateData{}, err
+		}
+		staged = &file
+		stages = append(stages, stage)
+	}
 
 	file, err := os.OpenFile(archivePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
@@ -75,9 +94,21 @@ func (realFS) Create(spec CreateSpec) (CreateData, error) {
 		seen:       make(map[string]struct{}),
 		skipped:    []string{},
 		warnings:   []string{},
+		progress:   spec.Progress,
 	}
-	if err := builder.addAll(writer, spec.Paths); err != nil {
-		return CreateData{}, err
+	packStarted := time.Now()
+	if len(spec.Paths) > 0 {
+		if err := builder.addAll(writer, spec.Paths); err != nil {
+			return CreateData{}, err
+		}
+	}
+	if staged != nil {
+		if err := builder.addStaged(writer, staged.path, staged.rel, staged.size); err != nil {
+			return CreateData{}, err
+		}
+	}
+	if builder.entries == 0 {
+		return CreateData{}, newOpError(ErrInvalid, "没有可备份的条目（路径为空或被 exclude 全部排除）")
 	}
 	if err := writer.Close(); err != nil {
 		return CreateData{}, newOpError(ErrInternal, "收尾 tar 失败: "+err.Error())
@@ -97,6 +128,15 @@ func (realFS) Create(spec CreateSpec) (CreateData, error) {
 	if err := file.Close(); err != nil {
 		return CreateData{}, newOpError(ErrInternal, "关闭备份包失败: "+err.Error())
 	}
+	packFinished := time.Now()
+	stages = append(stages, JobStage{
+		Name:       "pack",
+		StartedAt:  packStarted.UTC().Format(time.RFC3339),
+		FinishedAt: packFinished.UTC().Format(time.RFC3339),
+		DurationMS: packFinished.Sub(packStarted).Milliseconds(),
+		Entries:    builder.entries,
+		Bytes:      builder.bytes,
+	})
 	sum := hex.EncodeToString(hasher.Sum(nil))
 	createdAt := now.Format(time.RFC3339)
 
@@ -114,14 +154,17 @@ func (realFS) Create(spec CreateSpec) (CreateData, error) {
 	}
 	committed = true
 	return CreateData{
-		ID:        id,
-		Path:      archivePath,
-		SizeBytes: info.Size(),
-		Entries:   builder.entries,
-		SHA256:    sum,
-		CreatedAt: createdAt,
-		Skipped:   builder.skipped,
-		Warnings:  builder.warnings,
+		ID:                id,
+		Path:              archivePath,
+		SizeBytes:         info.Size(),
+		UncompressedBytes: builder.bytes,
+		Entries:           builder.entries,
+		SHA256:            sum,
+		CreatedAt:         createdAt,
+		Skipped:           builder.skipped,
+		Warnings:          builder.warnings,
+		Dimensions:        spec.Dimensions,
+		Stages:            stages,
 	}, nil
 }
 
@@ -135,6 +178,8 @@ type archiveBuilder struct {
 	seen       map[string]struct{}
 	skipped    []string
 	warnings   []string
+	// progress 是真实进度回调（条目数、未压缩字节数）；nil 表示不关心。
+	progress func(entries int, bytes int64)
 }
 
 // addAll 按给定顺序遍历全部源路径，最终至少要求一个条目。
@@ -143,9 +188,6 @@ func (b *archiveBuilder) addAll(writer *tar.Writer, roots []string) error {
 		if err := b.addPath(writer, root); err != nil {
 			return err
 		}
-	}
-	if b.entries == 0 {
-		return newOpError(ErrInvalid, "没有可备份的条目（路径为空或被 exclude 全部排除）")
 	}
 	return nil
 }
@@ -219,6 +261,7 @@ func (b *archiveBuilder) writeDir(writer *tar.Writer, rel string, info fs.FileIn
 		return err
 	}
 	b.seen[rel] = struct{}{}
+	b.report()
 	return nil
 }
 
@@ -251,6 +294,7 @@ func (b *archiveBuilder) writeFile(writer *tar.Writer, current, rel string, info
 	}
 	b.bytes += written
 	b.seen[rel] = struct{}{}
+	b.report()
 	return nil
 }
 
@@ -273,6 +317,7 @@ func (b *archiveBuilder) writeSymlink(writer *tar.Writer, current, rel string, i
 		return err
 	}
 	b.seen[rel] = struct{}{}
+	b.report()
 	return nil
 }
 
@@ -286,6 +331,50 @@ func (b *archiveBuilder) writeHeader(writer *tar.Writer, header *tar.Header) err
 	}
 	b.entries++
 	return nil
+}
+
+// addStaged 把已导出的 db 文件按指定归档内路径写入，并计入字节上限。
+func (b *archiveBuilder) addStaged(writer *tar.Writer, hostPath, rel string, size int64) error {
+	if _, ok := b.seen[rel]; ok {
+		return newOpError(ErrConflict, "归档内路径冲突: "+rel)
+	}
+	if size > b.maxBytes-b.bytes {
+		return newOpError(ErrInvalid, fmt.Sprintf("备份内容超过单次 %d 字节上限，已中止并删除半成品", b.maxBytes))
+	}
+	file, err := os.Open(hostPath)
+	if err != nil {
+		return newOpError(ErrInternal, "打开导出文件失败: "+err.Error())
+	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil {
+		return newOpError(ErrInternal, "读取导出文件信息失败: "+err.Error())
+	}
+	header, err := tar.FileInfoHeader(info, "")
+	if err != nil {
+		return newOpError(ErrInternal, "构造导出文件头失败: "+err.Error())
+	}
+	header.Name = rel
+	header.Uid, header.Gid = 0, 0
+	header.Format = tar.FormatPAX
+	if err := b.writeHeader(writer, header); err != nil {
+		return err
+	}
+	written, err := io.CopyN(writer, file, info.Size())
+	if err != nil {
+		return newOpError(ErrInternal, fmt.Sprintf("读取导出文件失败（已写 %d 字节）", written))
+	}
+	b.bytes += written
+	b.seen[rel] = struct{}{}
+	b.report()
+	return nil
+}
+
+// report 把真实进度回调给调用方（是否落盘由上层节流）。
+func (b *archiveBuilder) report() {
+	if b.progress != nil {
+		b.progress(b.entries, b.bytes)
+	}
 }
 
 // excluded 判定相对路径是否命中 exclude glob（同时匹配完整相对路径与 basename）。

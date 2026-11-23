@@ -1,4 +1,4 @@
-// Package fault 对 backup 插件做四类故障注入，验证七个方法的错误返回。
+// Package fault 对 backup 插件做四类故障注入，验证数据面与控制面方法的错误返回。
 // 每个用例向 backupop.Call 的执行面注入一种故障，断言结构化错误码。
 package fault
 
@@ -38,6 +38,27 @@ func (f faultExecutor) Verify(string, string) (backupop.VerifyData, error) {
 	return backupop.VerifyData{}, backupop.NewFaultError(f.kind, "verify 执行面故障")
 }
 
+func (f faultExecutor) Download(backupop.DownloadSpec) (backupop.DownloadData, error) {
+	return backupop.DownloadData{}, backupop.NewFaultError(f.kind, "download 执行面故障")
+}
+
+// StateStore 让 jobs / schedule.* 也进四类故障矩阵。
+func (f faultExecutor) SaveJob(string, backupop.JobRecord) error {
+	return backupop.NewFaultError(f.kind, "jobs 执行面故障")
+}
+
+func (f faultExecutor) ListJobs(string, string) ([]backupop.JobRecord, error) {
+	return nil, backupop.NewFaultError(f.kind, "jobs 执行面故障")
+}
+
+func (f faultExecutor) SaveSchedules(string, []backupop.ScheduleRecord) error {
+	return backupop.NewFaultError(f.kind, "schedule 执行面故障")
+}
+
+func (f faultExecutor) LoadSchedules(string) ([]backupop.ScheduleRecord, error) {
+	return nil, backupop.NewFaultError(f.kind, "schedule 执行面故障")
+}
+
 // okExecutor 是 sanity 用的空执行面：只证明方法分派与编码路径正常，不落盘。
 type okExecutor struct{}
 
@@ -55,6 +76,10 @@ func (okExecutor) Delete(string, string) error { return nil }
 
 func (okExecutor) Verify(string, string) (backupop.VerifyData, error) {
 	return backupop.VerifyData{}, nil
+}
+
+func (okExecutor) Download(spec backupop.DownloadSpec) (backupop.DownloadData, error) {
+	return backupop.DownloadData{ID: spec.ID, EOF: true}, nil
 }
 
 // faultMethod 是一个方法的合法参数。
@@ -89,7 +114,7 @@ func assertFault(t *testing.T, kind backupop.FaultKind, wantCode, wantHint strin
 	}
 }
 
-// methodsFor 构造七个方法的合法参数，源目录位于给定工作区。
+// methodsFor 构造全部方法的合法参数，源目录位于给定工作区。
 func methodsFor(t *testing.T, workspace string) []faultMethod {
 	t.Helper()
 	source := filepath.Join(workspace, "src")
@@ -111,10 +136,14 @@ func methodsFor(t *testing.T, workspace string) []faultMethod {
 		{"verify", "backup.verify", `{"id":` + string(idJSON) + `}`},
 		{"retention", "backup.retention", `{"keep":2}`},
 		{"stats", "backup.stats", `{}`},
+		{"download", "backup.download", `{"id":` + string(idJSON) + `,"inline":true,"limit":1024}`},
+		{"jobs", "backup.jobs", `{}`},
+		{"schedule-set", "backup.schedule.set", `{"name":"snap","schedule":"0 3 * * *","paths":[` + string(sourceJSON) + `]}`},
+		{"schedule-get", "backup.schedule.get", `{}`},
 	}
 }
 
-// sanityNoFault 验证无故障时七个方法正常返回，证明故障断言不是"永远失败"的假通过。
+// sanityNoFault 验证无故障时全部方法正常返回，证明故障断言不是"永远失败"的假通过。
 func sanityNoFault(t *testing.T) {
 	t.Helper()
 	workspace := t.TempDir()

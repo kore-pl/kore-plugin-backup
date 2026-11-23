@@ -23,7 +23,7 @@
 | `backup.list` | `{}` | `backups[]`（`id/name/created_at/size_bytes/sha256?/entries?/corrupted/managed`）、`count` |
 | `backup.restore` | `id`、`target_dir`、`paths?` | `id`、`restored_entries`、`target_dir`、`failed[]`、`duration_ms` |
 | `backup.delete` | `id` | `id`、`deleted`、`duration_ms` |
-| `backup.verify` | `id` | `entries`、`size_bytes`、`uncompressed_bytes`、`sha256`、`sha_match`、`corrupted`、`duration_ms` |
+| `backup.verify` | `id` | `ok`、`checks[]`（`exists`/`size`/`sha256`/`size_recorded`/`readable`/`entries`，每项 `name/ok/detail`）、`legacy`、`entries`、`size_bytes`、`uncompressed_bytes`、`sha256`、`sha_match`、`corrupted`、`created_at`、`duration_ms` |
 | `backup.retention` | `keep`（1..100）、`dry_run?` | `kept`、`deleted[]`、`freed_bytes`、`dry_run`、`protected[]` |
 | `backup.stats` | `{}` | `total_count`、`total_bytes`、`oldest`、`newest`、`by_name[]` |
 | `backup.download` | `id`、`inline?`、`offset?`、`limit?` | `id`、`filename`、`path`、`size_bytes`、`sha256?`、`content_type`、`inline`、`offset`、`next_offset`、`eof`、`chunk_bytes`、`max_chunk_bytes`、`data_base64?` |

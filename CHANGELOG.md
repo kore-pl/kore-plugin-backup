@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2 (2026-11-23)
+
+- feat: **`backup.verify` 完整化**（只读，`system:read`）——返回 `{ok, checks[], sha256, size_bytes, created_at}`，逐项检查 文件存在 / 大小 > 0 / sha256 与记录一致 / 大小与记录一致 / 压缩包可完整读取 / 条目数与记录一致
+- fix: 失败文案按类别区分，能说清坏在哪：截断 → 「文件不完整（实际 X 字节 < 记录 Y 字节，疑似被截断）」/「压缩流在中途结束」；sha 不符 → 「内容被改动或写入不完整」；gzip/tar 坏 → 「压缩包损坏」；空文件 → 「文件为空（0 字节）」；旧备份无 sha → `legacy=true` + 仅检查可读性降级说明
+- feat: 插件自带 `web/index.html` 备份列表「校验」按钮，按检查项显示 ✓/✗ + 原因（响应式；不碰主壳 web）
+- test: `verify_test.go` 覆盖正常包 / 截断 / 篡改一字节 / 空文件 / 旧备份缺 sha 降级 / 不存在 id
+
 ## 0.4.1 (2026-11-23)
 
 - feat(protocol): `info.json` 补 `method_capabilities` 13 条（11 业务 + `config.get`/`config.set`）——只读 7 个方法声明 `system:read`（`list`/`verify`/`stats`/`download`/`jobs`/`schedule.get`/`config.get`），写类 6 个声明 `system:admin`；未声明的方法会回退插件级 `system:admin`，导致"看个备份列表也进 admin 审计"（PLUGIN-MATURITY §3.5 #12）

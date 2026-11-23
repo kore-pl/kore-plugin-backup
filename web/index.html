@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>备份 · 完整性校验</title>
+<style>
+  :root { color-scheme: light dark; --fg:#1f2328; --muted:#57606a; --line:#d0d7de; --bg:#fff; --ok:#1a7f37; --bad:#cf222e; --btn:#0969da; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --muted:#8b949e; --line:#30363d; --bg:#0d1117; --ok:#3fb950; --bad:#f85149; --btn:#4493f8; } }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--fg); background:var(--bg); }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 16px; }
+  table { width:100%; border-collapse:collapse; }
+  th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; white-space:nowrap; }
+  button { min-height:44px; min-width:64px; padding:8px 14px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--btn); font:inherit; cursor:pointer; }
+  button:disabled { opacity:.6; }
+  .result { margin-top:6px; font-size:13px; }
+  .check { display:flex; gap:6px; align-items:flex-start; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .empty { color:var(--muted); padding:24px 0; }
+  @media (max-width:640px) {
+    table, thead, tbody, th, td, tr { display:block; }
+    thead { display:none; }
+    tr { border-bottom:1px solid var(--line); padding:10px 0; }
+    td { border:0; padding:2px 0; }
+    td[data-label]::before { content:attr(data-label) "："; color:var(--muted); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>备份完整性校验</h1>
+  <p class="sub">逐项检查文件存在、大小、sha256、压缩包可读性与条目数；坏在哪会直接说明。</p>
+  <div id="state" class="empty">加载中…</div>
+  <table id="list" hidden>
+    <thead><tr><th>备份</th><th>大小</th><th>创建时间</th><th>操作</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</main>
+<script>
+(function () {
+  const state = document.getElementById('state');
+  const table = document.getElementById('list');
+  const rows = document.getElementById('rows');
+  const bridge = window.kore;
+  if (!bridge || typeof bridge.invoke !== 'function') {
+    state.textContent = '请从 kore 主壳打开本页面（需要 postMessage 桥）。';
+    return;
+  }
+  const fmtBytes = (n) => n >= 1048576 ? (n/1048576).toFixed(1)+' MiB' : n >= 1024 ? (n/1024).toFixed(1)+' KiB' : n+' B';
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function renderChecks(result) {
+    const box = document.createElement('div');
+    result.checks.forEach((c) => {
+      const line = document.createElement('div');
+      line.className = 'check';
+      const icon = document.createElement('span');
+      icon.className = c.ok ? 'ok' : 'bad';
+      icon.textContent = c.ok ? '✓' : '✗';
+      const text = document.createElement('span');
+      text.textContent = c.name + '：' + c.detail;
+      line.append(icon, text);
+      box.appendChild(line);
+    });
+    return box;
+  }
+
+  async function verify(id, cell) {
+    const button = cell.querySelector('button');
+    button.disabled = true;
+    button.textContent = '校验中…';
+    try {
+      const result = await bridge.invoke('backup.verify', { id });
+      cell.querySelector('.result')?.remove();
+      const box = document.createElement('div');
+      box.className = 'result';
+      const head = document.createElement('div');
+      head.className = result.ok ? 'ok' : 'bad';
+      head.textContent = result.legacy
+        ? '⚠ 旧备份未记录 sha256，已降级为仅检查可读性' + (result.ok ? '（可读）' : '（不可读）')
+        : (result.ok ? '✓ 校验通过' : '✗ 校验失败');
+      box.appendChild(head);
+      box.appendChild(renderChecks(result));
+      cell.appendChild(box);
+    } catch (err) {
+      const box = document.createElement('div');
+      box.className = 'result bad';
+      box.textContent = '校验请求失败：' + (err && err.message ? err.message : String(err));
+      cell.appendChild(box);
+    } finally {
+      button.disabled = false;
+      button.textContent = '校验';
+    }
+  }
+
+  async function load() {
+    try {
+      const data = await bridge.invoke('backup.list', {});
+      const items = data.items || [];
+      state.hidden = true;
+      table.hidden = false;
+      if (!items.length) {
+        state.hidden = false;
+        state.textContent = '还没有备份；先在插件中创建备份，再回来校验。';
+        table.hidden = true;
+        return;
+      }
+      rows.textContent = '';
+      items.forEach((item) => {
+        const tr = document.createElement('tr');
+        const name = document.createElement('td'); name.dataset.label = '备份'; name.textContent = item.name || item.id;
+        const size = document.createElement('td'); size.dataset.label = '大小'; size.textContent = fmtBytes(item.size_bytes || 0);
+        const created = document.createElement('td'); created.dataset.label = '创建时间'; created.textContent = item.created_at || '—';
+        const action = document.createElement('td'); action.dataset.label = '操作';
+        const button = document.createElement('button');
+        button.type = 'button'; button.textContent = '校验';
+        button.addEventListener('click', () => verify(item.id, action));
+        action.appendChild(button);
+        tr.append(name, size, created, action);
+        rows.appendChild(tr);
+      });
+    } catch (err) {
+      state.textContent = '读取备份列表失败：' + (err && err.message ? err.message : String(err));
+    }
+  }
+  load();
+})();
+</script>
+</body>
+</html>

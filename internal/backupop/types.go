@@ -239,7 +239,13 @@ type DeleteResult struct {
 
 // VerifyData 是 backup.verify 的完整校验结果。
 type VerifyData struct {
-	ID                string `json:"id"`
+	ID string `json:"id"`
+	// OK 是全部检查项通过的汇总；任一项失败即 false。
+	OK bool `json:"ok"`
+	// Checks 是逐项检查结果（exists / size / sha256 / readable / entries），失败项 detail 说明坏在哪。
+	Checks []VerifyCheck `json:"checks"`
+	// Legacy 表示旧备份没有记录 sha256，已降级为仅检查可读性（此时仍可能 OK=true）。
+	Legacy            bool   `json:"legacy"`
 	Entries           int    `json:"entries"`
 	SizeBytes         int64  `json:"size_bytes"`
 	UncompressedBytes int64  `json:"uncompressed_bytes"`
@@ -247,7 +253,15 @@ type VerifyData struct {
 	SidecarSHA256     string `json:"sidecar_sha256,omitempty"`
 	SHAMatch          bool   `json:"sha_match"`
 	Corrupted         bool   `json:"corrupted"`
+	CreatedAt         string `json:"created_at"`
 	DurationMS        int64  `json:"duration_ms"`
+}
+
+// VerifyCheck 是 backup.verify 的单条检查结果。
+type VerifyCheck struct {
+	Name   string `json:"name"`
+	OK     bool   `json:"ok"`
+	Detail string `json:"detail"`
 }
 
 // Executor 是备份操作的执行面；nil 时使用真实文件系统实现（realFS）。

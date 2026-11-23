@@ -60,7 +60,8 @@ func (realFS) List(dir string) ([]BackupInfo, error) {
 			Compression: compression,
 			Corrupted:   archiveHeaderBroken(archivePath, compression),
 		}
-		if meta, err := readMeta(archivePath + ".meta.json"); err == nil {
+		meta, metaErr := readMeta(archivePath + ".meta.json")
+		if metaErr == nil {
 			backup.Name = meta.Name
 			backup.CreatedAt = meta.CreatedAt
 			backup.Entries = meta.Entries
@@ -69,8 +70,25 @@ func (realFS) List(dir string) ([]BackupInfo, error) {
 		if sha, err := readSidecarSHA(archivePath + ".sha256"); err == nil {
 			backup.SHA256 = sha
 		}
+		backup.Managed = metaErr == nil && managedMeta(meta, id, backup.SHA256)
 		backups = append(backups, backup)
 	}
+	sortBackups(backups)
+	return backups, nil
+}
+
+// managedMeta 判定 sidecar 是否构成"本插件创建"的证据：
+// meta.id 必须与文件名一致，且 meta.sha256 必须与 .sha256 sidecar 相同。
+// 手工拷贝/外来包缺 sidecar 或两者不一致时 Managed=false，保留策略不删。
+func managedMeta(meta metaFile, id, sidecarSHA string) bool {
+	if meta.ID != id || meta.SHA256 == "" || sidecarSHA == "" {
+		return false
+	}
+	return meta.SHA256 == sidecarSHA
+}
+
+// sortBackups 按创建时间倒序、同刻按 id 倒序；List 与 retention 共用同一排序口径。
+func sortBackups(backups []BackupInfo) {
 	sort.Slice(backups, func(i, j int) bool {
 		ti, tj := parsedTime(backups[i].CreatedAt), parsedTime(backups[j].CreatedAt)
 		if !ti.Equal(tj) {
@@ -78,7 +96,6 @@ func (realFS) List(dir string) ([]BackupInfo, error) {
 		}
 		return backups[i].ID > backups[j].ID
 	})
-	return backups, nil
 }
 
 // resolveArchive 在备份目录内定位 id 对应的包，返回绝对路径与压缩算法。

@@ -1,4 +1,4 @@
-// Package fault 对 backup 插件做四类故障注入，验证五个方法的错误返回。
+// Package fault 对 backup 插件做四类故障注入，验证七个方法的错误返回。
 // 每个用例向 backupop.Call 的执行面注入一种故障，断言结构化错误码。
 package fault
 
@@ -89,7 +89,7 @@ func assertFault(t *testing.T, kind backupop.FaultKind, wantCode, wantHint strin
 	}
 }
 
-// methodsFor 构造五个方法的合法参数，源目录位于给定工作区。
+// methodsFor 构造七个方法的合法参数，源目录位于给定工作区。
 func methodsFor(t *testing.T, workspace string) []faultMethod {
 	t.Helper()
 	source := filepath.Join(workspace, "src")
@@ -109,10 +109,12 @@ func methodsFor(t *testing.T, workspace string) []faultMethod {
 		{"restore", "backup.restore", `{"id":` + string(idJSON) + `,"target_dir":` + string(targetJSON) + `}`},
 		{"delete", "backup.delete", `{"id":` + string(idJSON) + `}`},
 		{"verify", "backup.verify", `{"id":` + string(idJSON) + `}`},
+		{"retention", "backup.retention", `{"keep":2}`},
+		{"stats", "backup.stats", `{}`},
 	}
 }
 
-// sanityNoFault 验证无故障时五个方法正常返回，证明故障断言不是"永远失败"的假通过。
+// sanityNoFault 验证无故障时七个方法正常返回，证明故障断言不是"永远失败"的假通过。
 func sanityNoFault(t *testing.T) {
 	t.Helper()
 	workspace := t.TempDir()

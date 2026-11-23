@@ -34,6 +34,10 @@ func Call(method string, params json.RawMessage, opts Options, exec Executor) (j
 		return callDelete(params, opts, exec)
 	case "verify":
 		return callVerify(params, opts, exec)
+	case "retention":
+		return callRetention(params, opts, exec)
+	case "stats":
+		return callStats(params, opts, exec)
 	}
 	return nil, errNotFound(method)
 }
@@ -45,7 +49,7 @@ func businessVerb(method string) (string, bool) {
 		verb = strings.TrimPrefix(method, "backup.")
 	}
 	switch verb {
-	case "create", "list", "restore", "delete", "verify":
+	case "create", "list", "restore", "delete", "verify", "retention", "stats":
 		return verb, true
 	}
 	return "", false

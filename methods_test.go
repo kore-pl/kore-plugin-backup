@@ -76,6 +76,16 @@ func TestDispatchMethods(t *testing.T) {
 		t.Fatalf("恢复内容不对: %q err=%v", data, err)
 	}
 
+	stats := call(t, cfg, "backup.stats", `{}`)
+	if !strings.Contains(string(stats), `"total_count":1`) || !strings.Contains(string(stats), `"by_name":[{"name":"snap"`) {
+		t.Fatalf("stats 应汇总 1 份 snap 备份: %s", stats)
+	}
+
+	retained := call(t, cfg, "backup.retention", `{"keep":7}`)
+	if !strings.Contains(string(retained), `"deleted":[]`) || !strings.Contains(string(retained), `"kept":1`) {
+		t.Fatalf("keep 大于总数时不应删除: %s", retained)
+	}
+
 	deleted := call(t, cfg, "backup.delete", `{"id":`+jsonQuote(create.ID)+`}`)
 	if !strings.Contains(string(deleted), `"deleted":true`) {
 		t.Fatalf("delete 结果: %s", deleted)

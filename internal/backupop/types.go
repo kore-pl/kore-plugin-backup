@@ -138,6 +138,52 @@ type BackupInfo struct {
 	Entries     int    `json:"entries,omitempty"`
 	Compression string `json:"compression,omitempty"`
 	Corrupted   bool   `json:"corrupted"`
+	// Managed 表示该包带本插件签发的 .meta.json + 匹配的 .sha256 sidecar；
+	// 保留策略只删除 Managed=true 的包，手工放入的外来包一律不动。
+	Managed bool `json:"managed"`
+}
+
+// RetentionItem 是保留策略将要删除（或已删除）的一份备份。
+type RetentionItem struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at"`
+	SizeBytes int64  `json:"size_bytes"`
+}
+
+// RetentionProtected 是被保留策略跳过、未删除的备份及原因。
+type RetentionProtected struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Reason string `json:"reason"`
+}
+
+// RetentionData 是 backup.retention 的结构化结果。
+//
+// dry_run=true 时 Deleted 是"将被删除"的清单，磁盘不变；
+// FreedBytes 是删除（或预计释放）的压缩包字节数之和。
+type RetentionData struct {
+	Kept       int                  `json:"kept"`
+	Deleted    []RetentionItem      `json:"deleted"`
+	FreedBytes int64                `json:"freed_bytes"`
+	DryRun     bool                 `json:"dry_run"`
+	Protected  []RetentionProtected `json:"protected"`
+}
+
+// StatsNameBucket 是按备份 name 汇总的一行。
+type StatsNameBucket struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+	Bytes int64  `json:"bytes"`
+}
+
+// StatsData 是 backup.stats 的结构化结果。
+type StatsData struct {
+	TotalCount int               `json:"total_count"`
+	TotalBytes int64             `json:"total_bytes"`
+	Oldest     *string           `json:"oldest"`
+	Newest     *string           `json:"newest"`
+	ByName     []StatsNameBucket `json:"by_name"`
 }
 
 // ListResult 是 backup.list 的结构化结果。

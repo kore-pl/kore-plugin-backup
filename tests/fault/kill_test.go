@@ -7,7 +7,7 @@ import (
 	"github.com/pengtang1024/kore-plugin-backup/internal/backupop"
 )
 
-// TestKillFault 注入 kill -9（进程被信号终止），期望五个方法返回 E_UPSTREAM。
+// TestKillFault 注入 kill -9（进程被信号终止），期望七个方法返回 E_UPSTREAM。
 func TestKillFault(t *testing.T) {
 	assertFault(t, backupop.FaultKill, "E_UPSTREAM", "信号 9")
 }

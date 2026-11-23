@@ -9,19 +9,21 @@
 
 - `kore.plugin.v1`，`lifecycle=lazy`，`depth_level=production`
 - 能力声明：`system:admin`
-- 方法：`backup.create` / `backup.list` / `backup.restore` / `backup.delete` / `backup.verify`
-  （同时接受裸 `create` / `list` / `restore` / `delete` / `verify`）
+- 方法：`backup.create` / `backup.list` / `backup.restore` / `backup.delete` / `backup.verify` /
+  `backup.retention` / `backup.stats`（同时接受裸动词）
 - 握手的 stdout 留给协议帧，日志一律写 stderr
 
-## 五个方法
+## 七个方法
 
 | 方法 | 参数 | 结果 |
 | --- | --- | --- |
 | `backup.create` | `name`、`paths[]`、`exclude?`、`compression=gzip\|none` | `id`、`path`、`size_bytes`、`entries`、`sha256`、`duration_ms`、`skipped[]`、`warnings[]` |
-| `backup.list` | `{}` | `backups[]`（`id/name/created_at/size_bytes/sha256?/entries?/corrupted`）、`count` |
+| `backup.list` | `{}` | `backups[]`（`id/name/created_at/size_bytes/sha256?/entries?/corrupted/managed`）、`count` |
 | `backup.restore` | `id`、`target_dir`、`paths?` | `id`、`restored_entries`、`target_dir`、`failed[]`、`duration_ms` |
 | `backup.delete` | `id` | `id`、`deleted`、`duration_ms` |
 | `backup.verify` | `id` | `entries`、`size_bytes`、`uncompressed_bytes`、`sha256`、`sha_match`、`corrupted`、`duration_ms` |
+| `backup.retention` | `keep`（1..100）、`dry_run?` | `kept`、`deleted[]`（`id/name/created_at/size_bytes`）、`freed_bytes`、`dry_run`、`protected[]`（`id/name/reason`） |
+| `backup.stats` | `{}` | `total_count`、`total_bytes`、`oldest`、`newest`、`by_name[]`（`name/count/bytes`） |
 
 ### create
 
@@ -46,6 +48,20 @@
   符号链接目标不得为绝对路径或逃出恢复根
 - 恢复文件模式、mtime、uid/gid；非 root 无法恢复他人属主时降级跳过属主
 - 常规文件丢弃 setuid/setgid 位
+
+### retention
+
+- 按创建时间倒序保留最近 `keep` 份（1..100，必填），其余删除；`keep` 越界 `E_INVALID`
+- **只删本插件创建的包**：需同时有 `.meta.json`（`id` 与文件名一致）与匹配的 `.sha256`；
+  手工拷贝/外来的 tar.gz 一律跳过并记入 `protected[]`，`managed=false` 可在 `list` 里预先看到
+- **最新一份永不删除**：`keep ≥ 1` 时排序后的第 0 份天然落在保留窗口内
+- `dry_run=true` 只返回将删清单与预计 `freed_bytes`，不改磁盘；真删按同一清单执行
+- 删除复用 `backup.delete` 的"包 + 两个 sidecar"语义；中途失败返回错误并注明已删除份数
+
+### stats
+
+- 汇总 `total_count` / `total_bytes` / `oldest` / `newest`（无备份时 `null`）与 `by_name[]` 分组
+- 分组按数量倒序、同数量按 name 升序；创建时间无法解析的条目不参与最早/最晚判定
 
 ### verify
 
@@ -75,7 +91,7 @@ tar -tzf dist/backup-0.2.0.tar.gz | head -1      # info.json
 
 单元测试覆盖真实目录树（子目录/空文件/大文件/中文名/符号链接）打包恢复、`exclude`
 glob、确定性 sha256、路径穿越整包拒绝、白名单与 `/proc` 拒绝、篡改包
-`sha_match=false`、删除不存在 `E_NOTFOUND`。`tests/fault/` 四类故障注入覆盖五个方法。
+`sha_match=false`、删除不存在 `E_NOTFOUND`。`tests/fault/` 四类故障注入覆盖七个方法。
 
 `dist` 使用确定性参数归档（显式条目 + `--sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner`
 + `gzip -9n` + chmod 归一），重复构建 sha256 不变；`size_bytes` 由打包脚本回填，

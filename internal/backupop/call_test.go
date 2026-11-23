@@ -15,8 +15,9 @@ func TestBusinessVerb(t *testing.T) {
 	cases := map[string]string{
 		"backup.create": "create", "backup.list": "list", "backup.restore": "restore",
 		"backup.delete": "delete", "backup.verify": "verify",
+		"backup.retention": "retention", "backup.stats": "stats",
 		"create": "create", "list": "list", "restore": "restore",
-		"delete": "delete", "verify": "verify",
+		"delete": "delete", "verify": "verify", "retention": "retention", "stats": "stats",
 	}
 	for method, want := range cases {
 		got, ok := businessVerb(method)
@@ -52,6 +53,9 @@ func TestCallParamValidation(t *testing.T) {
 		{"backup.restore", `{"id":"../etc","target_dir":"` + workspace + `/dst"}`},
 		{"backup.delete", `{"id":""}`},
 		{"backup.verify", `{"id":"a/b"}`},
+		{"backup.retention", `{"keep":0}`},
+		{"backup.retention", `{"keep":101}`},
+		{"backup.retention", `{"keep":"2"}`},
 	}
 	for _, c := range bad {
 		_, perr := Call(c.method, json.RawMessage(c.params), opts, nil)

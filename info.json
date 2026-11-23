@@ -1,7 +1,7 @@
 {
   "id": "backup",
   "name": "备份插件",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "protocol": "kore.plugin.v1",
   "lifecycle": "lazy",
   "depth_level": "production",
@@ -13,5 +13,5 @@
   "depends_on": [],
   "conflicts": [],
   "scenario_tags": ["ops", "data"],
-  "size_bytes": 1520375
+  "size_bytes": 1524286
 }

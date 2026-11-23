@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 (2026-11-23)
+
+- feat: `backup.retention {keep, dry_run?}` 保留策略：按创建时间倒序保留最近 1..100 份，
+  其余删除并返回 `{kept, deleted[], freed_bytes}`；`dry_run=true` 只返回将删清单
+- feat: 保留策略保护边界——最新一份永不删除；只删带本插件 `.meta.json` + 匹配 `.sha256`
+  的包，手工放入的外来包跳过并记入 `protected[]`；`backup.list` 新增 `managed` 字段
+- feat: `backup.stats` 汇总 `{total_count, total_bytes, oldest, newest, by_name[]}`，
+  分组按数量倒序、同数量按 name 升序
+- test: retention 的 dry_run/真删/最新一份保护/外来包保护/keep 越界/中途失败上下文，
+  stats 的空目录与分组汇总；故障注入覆盖扩到七个方法
+- docs: README 七方法表与 retention/stats 语义
+
 ## 0.2.1 (2026-11-23)
 
 - fix: 位级可复现打包（stage chmod + tar --mode 归一、size_bytes 收敛）；二进制改嵌 manifest.json，消除版本/大小回填导致的同版本 sha 漂移

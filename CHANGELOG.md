@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 (2026-11-24)
+
+修复 P3 错误消息缺陷（HANDOFF B.6 挂账 #9，披露于 `07e9ac5`）：
+
+- **修复（权限失败不提怎么办）**：非 root 备份 root-only 源（如 `/etc/shadow`）时，源文件打开失败原被 `skip()` 吞成 warning，最终只报「没有可备份的条目」，用户不知道是权限问题。现在 `archiveBuilder` 记录权限跳过数，零条目消息点明「N 个源文件因权限不足被跳过（permission denied）；请检查属主与权限，或以 root 运行后重试」
+- **修复（errno 上下文缺，同类）**：`writeFile` 的 `io.CopyN` 读失败消息补上底层 errno（EFBIG/ENOSPC 等）与「怎么办」；`errnoText` 剥掉 `fs.PathError` 的宿主绝对路径，不泄露目录布局
+- **测试**：新增 `internal/backupop/archive_errors_test.go`——权限跳过零条目消息含 permission denied + 可操作建议、errnoText 剥路径两类断言；既有 boundary 断言（「没有可备份的条目」「读取文件内容失败」前缀）全部保持通过
+
 ## 0.5.0 (2026-11-24)
 
 - feat: **备份预设（预设优先、自定义兜底）**——`backup.create` 新增 `preset` 参数：

@@ -108,7 +108,7 @@ func (realFS) Create(spec CreateSpec) (CreateData, error) {
 		}
 	}
 	if builder.entries == 0 {
-		return CreateData{}, newOpError(ErrInvalid, "没有可备份的条目（路径为空或被 exclude 全部排除）")
+		return CreateData{}, newOpError(ErrInvalid, builder.zeroEntriesMessage())
 	}
 	if err := writer.Close(); err != nil {
 		return CreateData{}, newOpError(ErrInternal, "收尾 tar 失败: "+err.Error())
@@ -178,6 +178,8 @@ type archiveBuilder struct {
 	seen       map[string]struct{}
 	skipped    []string
 	warnings   []string
+	// permissionSkips 记录因权限不足（EACCES）被跳过的源文件数，零条目时给「怎么办」提示。
+	permissionSkips int
 	// progress 是真实进度回调（条目数、未压缩字节数）；nil 表示不关心。
 	progress func(entries int, bytes int64)
 }
@@ -269,7 +271,13 @@ func (b *archiveBuilder) writeDir(writer *tar.Writer, rel string, info fs.FileIn
 func (b *archiveBuilder) writeFile(writer *tar.Writer, current, rel string, info fs.FileInfo) error {
 	file, err := os.Open(current)
 	if err != nil {
-		b.skip(rel, "打开文件失败，已跳过")
+		reason := "打开文件失败，已跳过"
+		if errors.Is(err, fs.ErrPermission) {
+			// 区分权限不足与其他打开失败，零条目时据此给可操作建议。
+			b.permissionSkips++
+			reason = "权限不足，已跳过（" + err.Error() + "）"
+		}
+		b.skip(rel, reason)
 		return nil
 	}
 	defer func() { _ = file.Close() }()
@@ -290,7 +298,9 @@ func (b *archiveBuilder) writeFile(writer *tar.Writer, current, rel string, info
 	}
 	written, err := io.CopyN(writer, file, info.Size())
 	if err != nil {
-		return newOpError(ErrInternal, fmt.Sprintf("读取文件内容失败（已写 %d 字节）", written))
+		// 带底层 errno（如 disk quota exceeded / no space left）与「怎么办」；
+		// 剥掉 PathError 的宿主绝对路径，避免泄露目录布局。
+		return newOpError(ErrInternal, fmt.Sprintf("读取文件内容失败（已写 %d 字节，底层错误: %s）；请检查磁盘剩余空间与文件读取权限后重试", written, errnoText(err)))
 	}
 	b.bytes += written
 	b.seen[rel] = struct{}{}
@@ -451,4 +461,26 @@ func atomicWrite(target string, content []byte) error {
 		return err
 	}
 	return os.Rename(tempName, target)
+}
+
+// zeroEntriesMessage 生成零条目的错误消息：若有权限跳过则点明原因与「怎么办」。
+func (b *archiveBuilder) zeroEntriesMessage() string {
+	if b.permissionSkips > 0 {
+		// 人话 + 为什么（被权限拦截）+ 怎么办；不拼具体路径，避免泄露目录布局。
+		return fmt.Sprintf("没有可备份的条目：%d 个源文件因权限不足被跳过（permission denied）；请检查属主与权限，或以 root 运行后重试", b.permissionSkips)
+	}
+	return "没有可备份的条目（路径为空或被 exclude 全部排除）"
+}
+
+// errnoText 提取底层 errno 文案，剥掉 fs.PathError 自带的宿主绝对路径，
+// 避免把宿主机目录布局泄露给调用方；非 PathError 直接返回其文本。
+func errnoText(err error) string {
+	if err == nil {
+		return ""
+	}
+	var pe *fs.PathError
+	if errors.As(err, &pe) && pe.Err != nil {
+		return pe.Err.Error()
+	}
+	return err.Error()
 }

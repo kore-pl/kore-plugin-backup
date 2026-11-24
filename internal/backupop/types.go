@@ -142,6 +142,8 @@ type CreateData struct {
 	Warnings          []string `json:"warnings"`
 	// Dimensions 回显本次实际备份的维度。
 	Dimensions []string `json:"dimensions"`
+	// Preset 回显本次使用的预设 id；纯自定义调用为空。
+	Preset string `json:"preset,omitempty"`
 	// Stages 是真实分阶段耗时（db_dump / pack），不是伪进度。
 	Stages []JobStage `json:"stages"`
 	// Job 是本任务的持久化作业记录（状态机与真实计数），由 Call 回填。
@@ -205,6 +207,10 @@ type RetentionData struct {
 	FreedBytes int64                `json:"freed_bytes"`
 	DryRun     bool                 `json:"dry_run"`
 	Protected  []RetentionProtected `json:"protected"`
+	// Preset 回显保留策略预设 id；纯自定义 keep 调用为空。
+	Preset string `json:"preset,omitempty"`
+	// Schedule 是预设推荐的内核任务 cron（前端据此创建定时任务）。
+	Schedule string `json:"schedule,omitempty"`
 }
 
 // StatsNameBucket 是按备份 name 汇总的一行。

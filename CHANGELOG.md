@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 (2026-11-24)
+
+- feat: **备份预设（预设优先、自定义兜底）**——`backup.create` 新增 `preset` 参数：
+  `site-full`（网站全量，默认）/ `config`（关键配置）/ `db`（数据库，需 `db.database`）/ `full`（整机关键数据）
+- feat: **零参数一键**——`backup.create` 传 `{}` 时套默认预设：自动发现白名单内已存在的站点目录
+  （`/var/www`、`/srv/www`、`/var/www/html`，全无则退回已存在的白名单根），名字取 `site-full`、压缩 gzip；
+  不再报「备份 name 不能为空」，小白一次调用即成功
+- feat: 新增只读方法 `backup.presets`（`system:read`）：返回预设清单、保留策略预设、本机真实展开结果
+  （`expanded.paths`）与仍需补的字段，前端据此渲染一键按钮
+- feat: 保留策略预设——`backup.retention` 支持 `preset=daily7|weekly4|monthly12`（keep 7/4/12 +
+  推荐 cron + 依据），显式 `keep` 仍优先；结果回显 `preset` / `schedule`
+- fix: 严格校验不放松——只要调用方传了任何业务字段且没给 `preset`，显式漏传 `paths` 仍是 `E_INVALID`；
+  0.4.2 的 boundary 断言（`TestAbnormalInputEmptySitePaths` 等 7 类异常输入）全部保持通过
+- test: `preset_test.go` 五条：零参数 create 成功且内容符合默认预设 / 三条预设展开正确 + 未知预设拒绝 +
+  db 预设必须选库 / 保留策略预设展开 / 自定义参数与 `.tar` 兜底仍可用 / **反例自证**（去掉默认预设后零参数用例 FAIL）
+- build: `info.json` / `manifest.json` 版本 0.5.0，`methods` 增 `backup.presets`，
+  `method_capabilities` 增 `backup.presets: system:read`
+
 ## 0.4.2 (2026-11-23)
 
 - feat: **`backup.verify` 完整化**（只读，`system:read`）——返回 `{ok, checks[], sha256, size_bytes, created_at}`，逐项检查 文件存在 / 大小 > 0 / sha256 与记录一致 / 大小与记录一致 / 压缩包可完整读取 / 条目数与记录一致

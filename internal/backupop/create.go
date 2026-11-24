@@ -2,6 +2,7 @@ package backupop
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/pengtang1024/kore/pkg/pluginapi"
@@ -15,7 +16,11 @@ const (
 )
 
 // createParams 是 backup.create 的显式入参形状。
+//
+// preset 是预设 id：给出时只补齐未填字段（自定义字段优先）；完全零参数时
+// 自动套默认预设，小白不填任何字段也能成功。
 type createParams struct {
+	Preset      string          `json:"preset,omitempty"`
 	Name        string          `json:"name"`
 	Dimensions  []string        `json:"dimensions,omitempty"`
 	Paths       []string        `json:"paths,omitempty"`
@@ -76,6 +81,21 @@ func callCreate(raw json.RawMessage, opts Options, exec Executor) (json.RawMessa
 	var p createParams
 	if perr := decodeParams(raw, &p); perr != nil {
 		return nil, perr
+	}
+	// 预设解析：显式 preset 或完全零参数时套默认预设；只补空字段。
+	presetID := strings.TrimSpace(p.Preset)
+	if presetID == "" && isZeroCreateParams(p) && defaultPresetID != "" {
+		presetID = defaultPresetID
+	}
+	if presetID != "" {
+		expansion, perr := expandBackupPreset(presetID, opts.AllowRoots)
+		if perr != nil {
+			return nil, perr
+		}
+		if expansion.RequiresDatabase && (p.DB == nil || strings.TrimSpace(p.DB.Database) == "") {
+			return nil, invalid("预设「" + presetLabel(presetID) + "」需要指定要备份的数据库：db.database")
+		}
+		applyPreset(&p, expansion)
 	}
 	name, perr := ValidateName(p.Name)
 	if perr != nil {
@@ -159,6 +179,7 @@ func callCreate(raw json.RawMessage, opts Options, exec Executor) (json.RawMessa
 	tracker.finish(data, nil)
 	record := tracker.snapshot()
 	data.Job = &record
+	data.Preset = presetID
 	return encode(data)
 }
 

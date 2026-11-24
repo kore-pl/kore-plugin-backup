@@ -19,12 +19,13 @@
 
 | 方法 | 参数 | 结果 |
 | --- | --- | --- |
-| `backup.create` | `name`、`dimensions?`、`paths?`、`db?`、`exclude?`、`compression=gzip\|none` | `id`、`path`、`size_bytes`、`uncompressed_bytes`、`entries`、`sha256`、`duration_ms`、`dimensions`、`stages[]`、`job`、`skipped[]`、`warnings[]` |
+| `backup.create` | `preset?`、`name?`（零参数或 preset 时可省）、`dimensions?`、`paths?`、`db?`、`exclude?`、`compression=gzip\|none` | `id`、`path`、`size_bytes`、`uncompressed_bytes`、`entries`、`sha256`、`duration_ms`、`dimensions`、`stages[]`、`job`、`skipped[]`、`warnings[]` |
 | `backup.list` | `{}` | `backups[]`（`id/name/created_at/size_bytes/sha256?/entries?/corrupted/managed`）、`count` |
 | `backup.restore` | `id`、`target_dir`、`paths?` | `id`、`restored_entries`、`target_dir`、`failed[]`、`duration_ms` |
 | `backup.delete` | `id` | `id`、`deleted`、`duration_ms` |
 | `backup.verify` | `id` | `ok`、`checks[]`（`exists`/`size`/`sha256`/`size_recorded`/`readable`/`entries`，每项 `name/ok/detail`）、`legacy`、`entries`、`size_bytes`、`uncompressed_bytes`、`sha256`、`sha_match`、`corrupted`、`created_at`、`duration_ms` |
-| `backup.retention` | `keep`（1..100）、`dry_run?` | `kept`、`deleted[]`、`freed_bytes`、`dry_run`、`protected[]` |
+| `backup.presets` | `{}` | `default_preset`、`presets[]`（`id/label/description/fields[]/expanded`）、`retention_presets[]`（`id/label/keep/schedule/rationale`）、`hint` |
+| `backup.retention` | `preset?`（daily7/weekly4/monthly12）、`keep`（1..100）、`dry_run?` | `kept`、`deleted[]`、`freed_bytes`、`dry_run`、`protected[]`、`preset?`、`schedule?` |
 | `backup.stats` | `{}` | `total_count`、`total_bytes`、`oldest`、`newest`、`by_name[]` |
 | `backup.download` | `id`、`inline?`、`offset?`、`limit?` | `id`、`filename`、`path`、`size_bytes`、`sha256?`、`content_type`、`inline`、`offset`、`next_offset`、`eof`、`chunk_bytes`、`max_chunk_bytes`、`data_base64?` |
 | `backup.jobs` | `id?`、`limit?`（1..50，缺省 20） | `jobs[]`（`id/name/status/dimensions/started_at/finished_at?/entries/bytes/archive_bytes?/archive_id?/sha256?/error?/stages[]`）、`count`、`hint` |
@@ -42,6 +43,37 @@
 - 备份包与 sidecar 权限均为 `0600`；sidecar 为 `<包>.sha256` 与 `<包>.meta.json`
 - 单次上限：未压缩内容 ≤ 2 GiB、条目 ≤ 100 万；超限中止并删除半成品
 - 源内设备/FIFO/socket 跳过并写入 `skipped[]` / `warnings[]`
+
+### 预设优先、自定义兜底（0.5.0）
+
+`backup.create` 支持两档用法，核心任务**零参数一次点击**即可完成：
+
+- **零参数一键**：`backup.create` 传 `{}` 会套默认预设 `site-full`（网站全量备份），
+  自动发现白名单内已存在的站点目录（`/var/www`、`/srv/www`、`/var/www/html`，
+  都没有时退回已存在的白名单根本身），名字自动取 `site-full`，压缩 `gzip`。
+- **选预设**：`{"preset":"config"}` 只展开该预设的路径/维度/压缩；
+  显式再传 `name`/`paths`/`exclude`/`compression` 时**自定义字段优先**（兜底没坏）。
+- **严格校验不放松**：只要调用方自己传了任何业务字段且没给 `preset`，就仍按严格规则校验
+  （例如显式传 `name` 却不传 `paths` 仍是 `E_INVALID`）——漏传参数不会被静默变成另一份备份。
+
+| 预设 id | 名称 | 展开内容 |
+| --- | --- | --- |
+| `site-full` | 网站全量备份 | `dimensions=["site"]` + 自动发现的站点目录 + `gzip` |
+| `config` | 配置文件备份 | `dimensions=["site"]` + 已存在的 `/etc/nginx`、`/etc/kore`、`kore.service` |
+| `db` | 数据库备份 | `dimensions=["db"]` + 必须补 `db.database`（连接信息来自插件配置） |
+| `full` | 整机关键数据 | 站点目录 + 关键配置（数据库单独选 `db`，不擅自备份"某个默认库"） |
+
+预设**不写任何隐式 exclude**：备份范围必须可预期，"以为备了却没备"比多备更危险。
+`backup.presets` 返回每条预设在本机的真实展开结果（`expanded.paths`）与仍需补的字段，
+前端据此渲染一键按钮，不需要自己拼参数。
+
+保留策略预设（`backup.retention` 的 `preset`，显式 `keep` 仍优先）：
+
+| 预设 id | 名称 | keep | 推荐 cron | 依据 |
+| --- | --- | --- | --- | --- |
+| `daily7` | 每日 7 天 | 7 | `0 3 * * *` | 小型站点惯例：RPO ≤24h，磁盘约 7×单份 |
+| `weekly4` | 每周 4 周 | 4 | `0 2 * * 0` | 变化少的站点：覆盖一个月，约 4×单份 |
+| `monthly12` | 每月 12 月 | 12 | `0 3 1 * *` | 合规留档：覆盖一年，约 12×单份 |
 
 ### 备份维度（site / db / 组合）
 
@@ -141,7 +173,7 @@
 gofmt -l . && go vet ./... && go test -timeout 200s ./...
 go test -tags e2e -timeout 200s ./tests/e2e -v   # 真实插件二进制 + UDS 端到端
 make build && make dist
-tar -tzf dist/backup-0.4.2.tar.gz | head -1      # info.json
+tar -tzf dist/backup-0.5.0.tar.gz | head -1      # info.json
 ```
 
 单元测试覆盖真实目录树打包恢复、`exclude`、确定性 sha256、路径穿越整包拒绝、白名单与
@@ -168,7 +200,7 @@ schedule 契约/非法 cron/next_run_at、download 分块往返与符号链接�
 - **行为准则**：[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
 - **兼容性**：`protocol: kore.plugin.v1` · `requires_kore: >=0.1.0 <0.2.0` · `lifecycle: lazy` · 深度等级 `production`。
 - **验证方式**：本地 `make check` 优先（CI 只在 push main / tag / PR / 手动跑；发布前 `make dist` 连跑两次核对 sha 一致）。
-- **发布产物**：`make dist` → `dist/backup-0.4.2.tar.gz` + `.sha256`（位级可复现，连跑两次 sha 相同）。
+- **发布产物**：`make dist` → `dist/backup-0.5.0.tar.gz` + `.sha256`（位级可复现，连跑两次 sha 相同）。
 - **相关仓库**：[索引 kore-plugins](https://github.com/kore-pl/kore-plugins) · [协议文档](https://github.com/kore-pl/kore/blob/main/docs/PLUGIN-PROTOCOL.md) · [SDK 指南](https://github.com/kore-pl/kore/blob/main/docs/PLUGIN-SDK.md)
 
 <!-- oss:end -->

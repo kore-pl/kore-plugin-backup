@@ -3,6 +3,7 @@ package backupop
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/pengtang1024/kore/pkg/pluginapi"
 )
@@ -14,9 +15,13 @@ const (
 )
 
 // retentionParams 是 backup.retention 的显式入参形状。
+//
+// preset 是保留策略预设 id（daily7 / weekly4 / monthly12）：给出且 keep 未填时
+// 用预设的份数，并回显推荐 cron；显式 keep 仍然优先（自定义兜底不坏）。
 type retentionParams struct {
-	Keep   int  `json:"keep"`
-	DryRun bool `json:"dry_run"`
+	Preset string `json:"preset,omitempty"`
+	Keep   int    `json:"keep"`
+	DryRun bool   `json:"dry_run"`
 }
 
 // callRetention 处理 backup.retention：按创建时间倒序保留最近 keep 份，
@@ -27,6 +32,13 @@ func callRetention(raw json.RawMessage, opts Options, exec Executor) (json.RawMe
 	var p retentionParams
 	if perr := decodeParams(raw, &p); perr != nil {
 		return nil, perr
+	}
+	preset := findRetentionPreset(strings.TrimSpace(p.Preset))
+	if strings.TrimSpace(p.Preset) != "" && preset == nil {
+		return nil, invalid("未知保留策略预设: " + p.Preset + "；可用: daily7 / weekly4 / monthly12")
+	}
+	if preset != nil && p.Keep == 0 {
+		p.Keep = preset.Keep
 	}
 	if p.Keep < MinRetentionKeep || p.Keep > MaxRetentionKeep {
 		return nil, invalid(fmt.Sprintf("keep 必须在 %d–%d 之间", MinRetentionKeep, MaxRetentionKeep))
@@ -64,6 +76,10 @@ func callRetention(raw json.RawMessage, opts Options, exec Executor) (json.RawMe
 		result.FreedBytes += backup.SizeBytes
 	}
 	result.Kept = len(backups) - len(result.Deleted)
+	if preset != nil {
+		result.Preset = preset.ID
+		result.Schedule = preset.Schedule
+	}
 	return encode(result)
 }
 

@@ -26,6 +26,8 @@ func Call(method string, params json.RawMessage, opts Options, exec Executor) (j
 	switch verb {
 	case "create":
 		return callCreate(params, opts, exec)
+	case "presets":
+		return callPresets(params, opts, exec)
 	case "list":
 		return callList(params, opts, exec)
 	case "restore":
@@ -57,7 +59,7 @@ func businessVerb(method string) (string, bool) {
 		verb = strings.TrimPrefix(method, "backup.")
 	}
 	switch verb {
-	case "create", "list", "restore", "delete", "verify", "retention", "stats",
+	case "create", "presets", "list", "restore", "delete", "verify", "retention", "stats",
 		"download", "jobs", "schedule.set", "schedule.get":
 		return verb, true
 	}

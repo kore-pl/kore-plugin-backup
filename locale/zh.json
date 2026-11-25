@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "kore-plugin-backup",
+    "description": "生产级备份插件：真实打包、恢复与完整性校验，只用标准库 archive/tar + compress/gzip，不依赖外部 tar/gzip 或第三方库；备份包落本地目录，S3 等异地存储明确不做。",
+    "detail": "docs/DETAIL.md"
+  }
+}

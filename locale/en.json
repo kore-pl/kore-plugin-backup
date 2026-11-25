@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "kore-plugin-backup",
+    "description": "Production-grade backup plugin: real pack, restore and integrity verification using only the standard library archive/tar + compress/gzip; no external tar/gzip or third-party libraries. Archives stay in a local directory; S3-style remote storage is explicitly out of scope.",
+    "detail": "docs/DETAIL.en.md"
+  }
+}

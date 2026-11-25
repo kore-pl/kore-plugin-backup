@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "kore-plugin-backup",
+    "description": "Plugin de backup de produção: empacotamento, restauração e verificação reais usando apenas a biblioteca padrão archive/tar + compress/gzip; sem tar/gzip externo ou bibliotecas de terceiros. Os arquivos ficam em diretório local; armazenamento remoto tipo S3 está fora de escopo.",
+    "detail": "docs/DETAIL.pt.md"
+  }
+}

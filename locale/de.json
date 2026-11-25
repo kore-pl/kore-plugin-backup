@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "kore-plugin-backup",
+    "description": "Backup-Plugin in Produktionsqualität: echtes Packen, Wiederherstellen und Integritätsprüfen, nur mit Standardbibliothek archive/tar + compress/gzip; kein externes tar/gzip, keine Drittanbieter-Bibliotheken. Archive bleiben in einem lokalen Verzeichnis; S3-artige Fernspeicherung ist ausdrücklich ausgeschlossen.",
+    "detail": "docs/DETAIL.de.md"
+  }
+}

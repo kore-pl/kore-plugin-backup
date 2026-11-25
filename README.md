@@ -1,5 +1,6 @@
 # kore-plugin-backup
 
+语言：[简体中文](docs/DETAIL.md) · [English](docs/DETAIL.en.md) · [Español](docs/DETAIL.es.md) · [Français](docs/DETAIL.fr.md) · [Deutsch](docs/DETAIL.de.md) · [Русский](docs/DETAIL.ru.md) · [Português](docs/DETAIL.pt.md)
 备份插件（**生产级**）：真实打包、恢复与完整性校验，不依赖任何外部 `tar` / `gzip`
 命令或第三方 Go 库，全部使用标准库 `archive/tar` + `compress/gzip`，避免 shell 注入
 与不同发行版 tar 版本差异。S3 等异地存储在 G-11 里**明确不做**：备份包落本地目录，
@@ -204,3 +205,7 @@ schedule 契约/非法 cron/next_run_at、download 分块往返与符号链接�
 - **相关仓库**：[索引 kore-plugins](https://github.com/kore-pl/kore-plugins) · [协议文档](https://github.com/kore-pl/kore/blob/main/docs/PLUGIN-PROTOCOL.md) · [SDK 指南](https://github.com/kore-pl/kore/blob/main/docs/PLUGIN-SDK.md)
 
 <!-- oss:end -->
+
+## 支持本项目
+
+如果备份插件帮你稳稳兜住了数据，欢迎给仓库点一个 ⭐ star——你的鼓励会让更多人看见 kore 的插件生态；想加方法或改文档，从 [CONTRIBUTING.md](CONTRIBUTING.md) 开始。

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.2 (2026-11-25)
+
+补齐易用性原则②「自动发现、不让人填环境细节」在备份页的缺口
+（`kore/docs/USABILITY.md` §5 记「备份源路径列表仍需手填」）：
+
+- feat: 新增只读方法 **`backup.sources.detect`**（`system:read`）——只读探测本机常见备份源，
+  返回 `{allow_roots, sources[], suggested_paths, checked, detected_at, hint?, note?}`：
+  站点根（`/var/www`、`/srv/www` 及其真实子目录）、应用目录（`/opt` 子目录）、
+  关键配置（`/etc/nginx`、`/etc/kore`）、数据库数据目录（`/var/lib/mysql` 等，只报告不预填）
+- feat: **白名单内才预填**——只有「允许的根路径」之内的目录进 `suggested_paths`，
+  白名单外的照样如实报告 `in_roots=false`，避免预填一个点「创建」必失败的路径；
+  探不到时 `hint` 给可执行的三条下一步（先建站点 / 加入允许根路径 / 手填绝对路径）
+- feat: 数据目录只报告不预填 + `note` 说明一致性导出做法（改用「数据库备份」预设做 mysqldump）
+- fix: 只读、无 root 依赖、有界——`os.Lstat`/`os.ReadDir`，读不了就跳过；
+  每容器最多 12 个子目录、总数 32，不递归遍历
+- test: `internal/backupop/detect_test.go` 七条——站点目录枚举 / 白名单外不预填 /
+  数据目录不预填 / 空容器退回自身 / 去重与父路径折叠 / 方法契约只读（探测前后目录不变）/ 未知方法拒绝
+
 ## 0.5.1 (2026-11-24)
 
 修复 P3 错误消息缺陷（HANDOFF B.6 挂账 #9，披露于 `07e9ac5`）：

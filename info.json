@@ -1,7 +1,7 @@
 {
   "id": "backup",
   "name": "备份插件",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "protocol": "kore.plugin.v1",
   "lifecycle": "lazy",
   "depth_level": "production",
@@ -23,7 +23,8 @@
     "backup.schedule.get": "system:read",
     "backup.config.get": "system:read",
     "backup.config.set": "system:admin",
-    "backup.presets": "system:read"
+    "backup.presets": "system:read",
+    "backup.sources.detect": "system:read"
   },
   "triggers": [],
   "requires_kore": ">=0.1.0 <0.2.0",
@@ -42,6 +43,7 @@
   "methods": [
     "backup.create",
     "backup.presets",
+    "backup.sources.detect",
     "backup.list",
     "backup.restore",
     "backup.delete",

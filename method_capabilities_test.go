@@ -32,7 +32,7 @@ var privilegedCapabilities = map[string]struct{}{
 // 否则配置读取会回退插件级 system:admin 并进管理审计（§3.5 #12）。
 var readOnlyVerbs = map[string]struct{}{
 	"list": {}, "verify": {}, "stats": {}, "download": {}, "jobs": {},
-	"schedule.get": {}, "config.get": {}, "presets": {},
+	"schedule.get": {}, "config.get": {}, "presets": {}, "sources.detect": {},
 }
 
 // writeVerbs 是写业务方法（含 config.set）：必须声明 system:admin。

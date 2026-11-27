@@ -148,10 +148,10 @@ func callUpload(raw json.RawMessage, opts Options, exec Executor) (json.RawMessa
 		}
 		if p.SHA256 != "" {
 			if len(p.SHA256) != hex.EncodedLen(32) {
-				return nil, invalid("sha256 必须是 64 位十六进制字符串")
+				return nil, invalid("sha256 应为 64 位十六进制字符串，请核对后重试")
 			}
 			if _, err := hex.DecodeString(p.SHA256); err != nil {
-				return nil, invalid("sha256 必须是 64 位十六进制字符串")
+				return nil, invalid("sha256 应为 64 位十六进制字符串，请核对后重试")
 			}
 		}
 	case "chunk":
@@ -161,17 +161,17 @@ func callUpload(raw json.RawMessage, opts Options, exec Executor) (json.RawMessa
 		}
 		spec.UploadID = id
 		if p.Offset < 0 {
-			return nil, invalid("offset 不能为负数")
+			return nil, invalid("offset 不能为负数，请从 0 开始顺序上传")
 		}
 		if p.DataBase64 == "" {
-			return nil, invalid("data_base64 不能为空")
+			return nil, invalid("请填写 data_base64 分块内容")
 		}
 		decoded, err := base64.StdEncoding.DecodeString(p.DataBase64)
 		if err != nil {
-			return nil, invalid("data_base64 解码失败: " + err.Error())
+			return nil, invalid("data_base64 解码失败，请确认使用标准 base64 编码: " + err.Error())
 		}
 		if int64(len(decoded)) > MaxUploadChunk {
-			return nil, invalid("单块超过 4 MiB 上限，已拒绝")
+			return nil, invalid("单块超过 4 MiB 上限，请按 4 MiB 重新分块")
 		}
 		spec.Data = decoded
 	case "commit", "abort":
@@ -181,7 +181,7 @@ func callUpload(raw json.RawMessage, opts Options, exec Executor) (json.RawMessa
 		}
 		spec.UploadID = id
 	default:
-		return nil, invalid("phase 必须是 begin / chunk / commit / abort 之一")
+		return nil, invalid("phase 应为 begin / chunk / commit / abort 之一，请检查后重试")
 	}
 	data, err := exec.Upload(spec)
 	if err != nil {
@@ -214,13 +214,13 @@ func callUpload(raw json.RawMessage, opts Options, exec Executor) (json.RawMessa
 // 且必须匹配本插件支持的 .tar / .tar.gz 扩展名（复用 archiveExt）。
 func validateUploadFilename(raw string) *pluginapi.Error {
 	if raw == "" {
-		return invalid("filename 不能为空")
+		return invalid("请提供要导入的备份文件名")
 	}
 	if strings.ContainsRune(raw, 0) || strings.Contains(raw, "\\") || strings.Contains(raw, "/") {
-		return invalid("filename 只能是文件名，不能含路径分隔符")
+		return invalid("filename 只能是文件名，请勿包含路径分隔符")
 	}
 	if _, _, ok := archiveExt(raw); !ok {
-		return invalid("仅支持 .tar 或 .tar.gz 备份包")
+		return invalid("请选择 .tar 或 .tar.gz 格式的备份包")
 	}
 	return nil
 }

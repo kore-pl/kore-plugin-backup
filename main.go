@@ -1,4 +1,4 @@
-// Package main 是 kore 的 backup 插件：本地 + S3 兼容备份的方法面骨架。
+// Package main 是 kore 的 backup 插件：本地备份插件方法面（S3 按 G-11 不做，见 README.md:6）。
 //
 // backup 只做协议握手 + 参数校验 + 结构化结果，不真写任何存储、
 // 不内置 awscli/rclone 等任何工具二进制（裁决37 / 提案 §2.1 批2）。

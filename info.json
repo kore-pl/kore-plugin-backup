@@ -40,7 +40,7 @@
     "ops",
     "data"
   ],
-  "size_bytes": 1741642,
+  "size_bytes": 1741525,
   "methods": [
     "backup.create",
     "backup.presets",

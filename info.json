@@ -1,7 +1,7 @@
 {
   "id": "backup",
   "name": "备份插件",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "protocol": "kore.plugin.v1",
   "lifecycle": "lazy",
   "depth_level": "production",
@@ -11,6 +11,8 @@
   ],
   "method_capabilities": {
     "backup.create": "system:admin",
+    "backup.presets": "system:read",
+    "backup.sources.detect": "system:read",
     "backup.list": "system:read",
     "backup.restore": "system:admin",
     "backup.delete": "system:admin",
@@ -18,13 +20,12 @@
     "backup.retention": "system:admin",
     "backup.stats": "system:read",
     "backup.download": "system:read",
+    "backup.upload": "system:admin",
     "backup.jobs": "system:read",
     "backup.schedule.set": "system:admin",
     "backup.schedule.get": "system:read",
     "backup.config.get": "system:read",
-    "backup.config.set": "system:admin",
-    "backup.presets": "system:read",
-    "backup.sources.detect": "system:read"
+    "backup.config.set": "system:admin"
   },
   "triggers": [],
   "requires_kore": ">=0.1.0 <0.2.0",
@@ -39,7 +40,7 @@
     "ops",
     "data"
   ],
-  "size_bytes": 1723546,
+  "size_bytes": 1741642,
   "methods": [
     "backup.create",
     "backup.presets",
@@ -51,6 +52,7 @@
     "backup.retention",
     "backup.stats",
     "backup.download",
+    "backup.upload",
     "backup.jobs",
     "backup.schedule.set",
     "backup.schedule.get",

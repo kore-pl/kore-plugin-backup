@@ -44,6 +44,8 @@ func Call(method string, params json.RawMessage, opts Options, exec Executor) (j
 		return callStats(params, opts, exec)
 	case "download":
 		return callDownload(params, opts, exec)
+	case "upload":
+		return callUpload(params, opts, exec)
 	case "jobs":
 		return callJobs(params, opts, exec)
 	case "schedule.set":
@@ -62,7 +64,7 @@ func businessVerb(method string) (string, bool) {
 	}
 	switch verb {
 	case "create", "presets", "sources.detect", "list", "restore", "delete", "verify", "retention", "stats",
-		"download", "jobs", "schedule.set", "schedule.get":
+		"download", "upload", "jobs", "schedule.set", "schedule.get":
 		return verb, true
 	}
 	return "", false

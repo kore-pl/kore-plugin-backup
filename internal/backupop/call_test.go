@@ -113,6 +113,10 @@ func (f faultExecutor) Download(DownloadSpec) (DownloadData, error) {
 	return DownloadData{}, NewFaultError(f.kind, "download 执行面故障")
 }
 
+func (f faultExecutor) Upload(UploadSpec) (UploadData, error) {
+	return UploadData{}, NewFaultError(f.kind, "upload 执行面故障")
+}
+
 func (f faultExecutor) Verify(string, string) (VerifyData, error) {
 	return VerifyData{}, NewFaultError(f.kind, "verify 执行面故障")
 }

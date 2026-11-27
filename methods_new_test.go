@@ -1,6 +1,12 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -71,6 +77,51 @@ func TestDispatchDownload(t *testing.T) {
 	if !strings.Contains(string(chunk), `"data_base64":`) {
 		t.Fatalf("download 未返回分块内容: %s", chunk)
 	}
+}
+
+// TestDispatchUpload 校验 backup.upload 四阶段经 main dispatch 落盘，且导入包不写 .meta.json。
+func TestDispatchUpload(t *testing.T) {
+	workspace := t.TempDir()
+	cfg := testConfig(t)
+	cfg.backupDir = filepath.Join(workspace, "backups")
+	cfg.allowRoots = []string{workspace}
+	var archive bytes.Buffer
+	gz := gzip.NewWriter(&archive)
+	tw := tar.NewWriter(gz)
+	content := []byte("dispatch-upload\n")
+	header := &tar.Header{Name: "site/a.txt", Mode: 0o644, Size: int64(len(content)), Uid: os.Getuid(), Gid: os.Getgid()}
+	if err := tw.WriteHeader(header); err != nil {
+		t.Fatalf("写 tar 头: %v", err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		t.Fatalf("写 tar 内容: %v", err)
+	}
+	_ = tw.Close()
+	_ = gz.Close()
+	payload := archive.Bytes()
+	sum := sha256.Sum256(payload)
+	begin := dispatchCall(t, &cfg, "backup.upload", `{"phase":"begin","upload_id":"u-dispatch","filename":"site.tar.gz","size_bytes":`+
+		jsonNumber(len(payload))+`,"sha256":"`+hex.EncodeToString(sum[:])+`"}`)
+	if !strings.Contains(string(begin), `"upload_id":"u-dispatch"`) || !strings.Contains(string(begin), `"chunk_bytes":4194304`) {
+		t.Fatalf("begin 结果不对: %s", begin)
+	}
+	chunk := dispatchCall(t, &cfg, "backup.upload", `{"phase":"chunk","upload_id":"u-dispatch","offset":0,"data_base64":"`+
+		base64.StdEncoding.EncodeToString(payload)+`"}`)
+	if !strings.Contains(string(chunk), `"received_bytes":`) {
+		t.Fatalf("chunk 结果不对: %s", chunk)
+	}
+	commit := dispatchCall(t, &cfg, "backup.upload", `{"phase":"commit","upload_id":"u-dispatch"}`)
+	if !strings.Contains(string(commit), `"managed":false`) || !strings.Contains(string(commit), `"entries":1`) {
+		t.Fatalf("commit 结果不对: %s", commit)
+	}
+	if _, err := os.Stat(filepath.Join(cfg.backupDir, ".upload-u-dispatch")); !os.IsNotExist(err) {
+		t.Fatalf("commit 后暂存目录应清理: %v", err)
+	}
+}
+
+func jsonNumber(n int) string {
+	data, _ := json.Marshal(n)
+	return string(data)
 }
 
 // TestDispatchDBDimensionUsesConfig 校验 dispatch 把 config 里的 db 连接透传给执行面。

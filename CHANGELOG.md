@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 (2026-11-27)
+
+补齐 BT「备份还原」一手确证的真差距：**上传本地备份导入**，恢复仍走既有 `backup.restore` 两级确认，不做「上传即恢复」（方案见 `docs/DESIGN-UPLOAD-RESTORE.md`）。
+
+- feat: 新增写方法 **`backup.upload`**（`system:admin`），四阶段 `begin / chunk / commit / abort` 共用一个方法；4 MiB base64 分块入站，对称 `backup.download`，不新增内核端点、不入任何出站（G-10）。
+- feat: 隔离暂存 `0700` 隐藏目录 → 顺序写 → commit **只读安全扫描**（复用 `validateRestoreHeader` / `validateSymlinkTarget` / `withinPath`）→ create-only 移入备份目录；失败 / 30 分钟 TTL 清理半包。
+- feat: 安全门 S1–S9：仅 `.tar` / `.tar.gz`、声明总长 ≤512 MiB（硬顶 2 GiB）、单块 ≤4 MiB、`ValidateID` + `assertInsideBackupDir`（含 `EvalSymlinks`）、拒绝对路径 / `..` / 设备 / FIFO / 硬链接 / 逃逸符号链接 / 超长链接 / 解压炸弹；审计复用内核 `capability.denied`。
+- feat: 导入包**自算 `.sha256`、不写 `.meta.json`** ⇒ `Managed=false`，保留策略不会误删用户导入的包；`list` / `verify` 立即可读，既有 `restore` 可直接恢复。
+- fix: 非 root 容器/沙箱里 `chown` 改他人属主返回 `EINVAL`（本机实测 errno 22）时，与既有 `EPERM` 同口径降级跳过属主恢复；此前会让 `restore` 误报 `E_INTERNAL`，属存量环境缺陷，非上传功能引入。
+- test: `upload_test.go`（合法往返 / 11 类恶意归档 / 超大 / 乱序 / abort / TTL / sha 不符）、`tests/boundary/upload_test.go`（真实执行面恶意与超大）、`tests/e2e/upload_e2e_test.go`（真插件 UDS 上传→复用 restore）；`method_capabilities_test.go` / `methods_new_test.go` / fault 替身同步到 16 条方法。
+- build: `info.json` / `manifest.json` 0.6.0，`methods` 与 `method_capabilities` 增 `backup.upload`；`make dist` 产出 `backup-0.6.0.tar.gz`。
+
 ## 0.5.3 (2026-11-26)
 
 ### 新增

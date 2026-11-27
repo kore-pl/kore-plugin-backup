@@ -216,6 +216,8 @@ func (f *retentionFailDelete) Download(DownloadSpec) (DownloadData, error) {
 	return DownloadData{}, nil
 }
 
+func (f *retentionFailDelete) Upload(UploadSpec) (UploadData, error) { return UploadData{}, nil }
+
 // TestRetentionDeleteFailureReportsProgress 中途失败要带已删除数量，不假装零删除。
 func TestRetentionDeleteFailureReportsProgress(t *testing.T) {
 	exec := &retentionFailDelete{failOn: 2, items: []BackupInfo{

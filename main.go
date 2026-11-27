@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"net"
 	"os"
+
+	"github.com/pengtang1024/kore-plugin-backup/internal/backupop"
 )
 
 // main 按退出码区分失败：0 优雅退出、1 启动或协议失败。
@@ -28,6 +30,10 @@ func run(logger *slog.Logger) error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
+	}
+	// 启动时清理上次进程遗留的半包（>30 分钟未提交），不碰任何已提交备份。
+	if err := backupop.SweepStaleUploads(cfg.backupDir); err != nil {
+		logger.Warn("清理过期上传暂存失败", "err", err)
 	}
 	conn, err := net.Dial("unix", cfg.socket)
 	if err != nil {

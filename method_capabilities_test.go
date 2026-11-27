@@ -37,7 +37,7 @@ var readOnlyVerbs = map[string]struct{}{
 
 // writeVerbs 是写业务方法（含 config.set）：必须声明 system:admin。
 var writeVerbs = map[string]struct{}{
-	"create": {}, "restore": {}, "delete": {}, "retention": {},
+	"create": {}, "restore": {}, "delete": {}, "retention": {}, "upload": {},
 	"schedule.set": {}, "config.set": {},
 }
 

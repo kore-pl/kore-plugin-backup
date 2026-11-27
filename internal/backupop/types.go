@@ -278,6 +278,7 @@ type Executor interface {
 	Delete(dir, id string) error
 	Verify(dir, id string) (VerifyData, error)
 	Download(spec DownloadSpec) (DownloadData, error)
+	Upload(spec UploadSpec) (UploadData, error)
 }
 
 // metaFile 是 <archive>.meta.json 的落盘结构。

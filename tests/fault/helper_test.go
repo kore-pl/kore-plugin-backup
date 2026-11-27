@@ -42,6 +42,10 @@ func (f faultExecutor) Download(backupop.DownloadSpec) (backupop.DownloadData, e
 	return backupop.DownloadData{}, backupop.NewFaultError(f.kind, "download 执行面故障")
 }
 
+func (f faultExecutor) Upload(backupop.UploadSpec) (backupop.UploadData, error) {
+	return backupop.UploadData{}, backupop.NewFaultError(f.kind, "upload 执行面故障")
+}
+
 // StateStore 让 jobs / schedule.* 也进四类故障矩阵。
 func (f faultExecutor) SaveJob(string, backupop.JobRecord) error {
 	return backupop.NewFaultError(f.kind, "jobs 执行面故障")
@@ -80,6 +84,10 @@ func (okExecutor) Verify(string, string) (backupop.VerifyData, error) {
 
 func (okExecutor) Download(spec backupop.DownloadSpec) (backupop.DownloadData, error) {
 	return backupop.DownloadData{ID: spec.ID, EOF: true}, nil
+}
+
+func (okExecutor) Upload(spec backupop.UploadSpec) (backupop.UploadData, error) {
+	return backupop.UploadData{UploadID: spec.UploadID}, nil
 }
 
 // faultMethod 是一个方法的合法参数。
@@ -137,6 +145,7 @@ func methodsFor(t *testing.T, workspace string) []faultMethod {
 		{"retention", "backup.retention", `{"keep":2}`},
 		{"stats", "backup.stats", `{}`},
 		{"download", "backup.download", `{"id":` + string(idJSON) + `,"inline":true,"limit":1024}`},
+		{"upload-begin", "backup.upload", `{"phase":"begin","upload_id":"u1","filename":"snap.tar.gz","size_bytes":1024}`},
 		{"jobs", "backup.jobs", `{}`},
 		{"schedule-set", "backup.schedule.set", `{"name":"snap","schedule":"0 3 * * *","paths":[` + string(sourceJSON) + `]}`},
 		{"schedule-get", "backup.schedule.get", `{}`},
